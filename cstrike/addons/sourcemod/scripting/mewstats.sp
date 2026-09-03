@@ -19,7 +19,6 @@
 #pragma newdecls required
 #pragma semicolon 1
 
-#define _MEWSTATS_RELEASE_TICK_UNKNOWN -1
 #define _MEWSTATS_JUMP_TICK_UNKNOWN -1
 
 public Plugin myinfo = {
@@ -76,7 +75,6 @@ char g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_THEME_
 char g_szChatSeparatorModes[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_CHAT_SEPARATOR_SIZE];
 
-int g_iThrowReleaseTick[MAXPLAYERS + 1];
 int g_iThrowJumpTick[MAXPLAYERS + 1];
 
 public APLRes AskPluginLoad2(Handle self, bool late, char[] error, int err_max)
@@ -113,7 +111,6 @@ public void OnPluginStart()
 
 public void OnClientPutInServer(int client)
 {
-    g_iThrowReleaseTick[client] = _MEWSTATS_RELEASE_TICK_UNKNOWN;
     g_iThrowJumpTick[client] = _MEWSTATS_JUMP_TICK_UNKNOWN;
 
     Mewstats_InitStateVars(client);
@@ -426,7 +423,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     int tick = 0;
     if (g_iThrowJumpTick[thrower] != _MEWSTATS_JUMP_TICK_UNKNOWN)
     {
-        tick = GetEntProp(thrower, Prop_Send, MEWSTATS_PROP_M_NTICKBASE) - g_iThrowJumpTick[thrower] - ;
+        tick = GetEntProp(thrower, Prop_Send, MEWSTATS_PROP_M_NTICKBASE) - g_iThrowJumpTick[thrower] - 1;
         if (tick < 0)
         {
             tick = 0;
@@ -466,29 +463,6 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     FormatEx(buff, size, "%T", szPhrase, client, szBaseColor, szAccentColor, szTime);
-}
-
-static void Event_WeaponFire(Event event, const char[] name, bool bNoBroadcast)
-{
-    if (event == INVALID_HANDLE)
-    {
-        return;
-    }
-
-    int client = GetClientOfUserId(event.GetInt(MEWSTATS_EVENT_VAR_USERID));
-    if (!Mewstats_IsClientInGame(client))
-    {
-        return;
-    }
-
-    char szWeapon[MEWSTATS_EVENT_VAR_WEAPON_SIZE];
-    event.GetString(MEWSTATS_EVENT_VAR_WEAPON, szWeapon, sizeof(szWeapon));
-    if (!StrEqual(szWeapon, MEWSTATS_EVENT_WEAPON_FLASHBANG))
-    {
-        return;
-    }
-
-    g_iThrowReleaseTick[client] = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_NTICKBASE);
 }
 
 static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
@@ -850,6 +824,5 @@ static void Mewstats_CreateCommands()
 
 static void Mewstats_HookEvents()
 {
-    HookEvent(MEWSTATS_EVENT_WEAPON_FIRE, Event_WeaponFire, EventHookMode_Post);
     HookEvent(MEWSTATS_EVENT_PLAYER_JUMP, Event_PlayerJump, EventHookMode_Post);
 }
