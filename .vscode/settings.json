@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "*.sp": "sourcepawn",
+        "*.inc": "sourcepawn"
+    },
+
+    "[sourcepawn][json][plaintext]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+
+    "files.eol": "\n",
+    "files.trimTrailingWhitespace": true,
+    "files.trimFinalNewlines": true,
+    "files.insertFinalNewline": true,
+
+    "editor.trimAutoWhitespace": false,
+    "editor.trimWhitespaceOnDelete": false
+}

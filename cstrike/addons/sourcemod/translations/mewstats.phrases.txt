@@ -1,0 +1,92 @@
+"Phrases"
+{
+    "Mewstats / Throw Speed"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Run: {2}{3}"
+    }
+
+    "Mewstats / Short Throw Speed"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}R: {2}{3}"
+    }
+
+    "Mewstats / Duck Throw Speed"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Duck: {2}{3}"
+    }
+
+    "Mewstats / Short Duck Throw Speed"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}D: {2}{3}"
+    }
+
+    "Mewstats / Crouch Throw Speed"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Crouch: {2}{3}"
+    }
+
+    "Mewstats / Short Crouch Throw Speed"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}C: {2}{3}"
+    }
+
+    "Mewstats / Throw Angle"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Angle: {2}{3}°"
+    }
+
+    "Mewstats / Short Throw Angle"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}A: {2}{3}°"
+    }
+
+    "Mewstats / Throw Time"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Time: {2}{3}"
+    }
+
+    "Mewstats / Short Throw Time"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}T: {2}{3}"
+    }
+}

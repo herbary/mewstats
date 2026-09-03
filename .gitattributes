@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+*.sp linguist-language=SourcePawn
+*.inc linguist-language=SourcePawn
+
+.vscode/** linguist-vendored=true
