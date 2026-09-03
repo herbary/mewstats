@@ -187,6 +187,9 @@ static void Mewstats_PrintThrowStats(int client, int thrower)
     char szThrowTime[_MEWSTATS_ELEMENT_SIZE] = "";
     Mewstats_FormatThrowTime(client, thrower, szThrowTime, sizeof(szThrowTime));
 
+    char szThrowStatus[_MEWSTATS_ELEMENT_SIZE] = "";
+    Mewstats_FormatThrowStatus(client, thrower, szThrowStatus, sizeof(szThrowStatus));
+
     char szMessageElements[_MEWSTATS_ELEMENT_COUNT][_MEWSTATS_ELEMENT_SIZE];
 
     int count = 0;
@@ -201,6 +204,10 @@ static void Mewstats_PrintThrowStats(int client, int thrower)
     if (szThrowTime[0] != '\0' && count < _MEWSTATS_ELEMENT_COUNT)
     {
         strcopy(szMessageElements[count++], _MEWSTATS_ELEMENT_SIZE, szThrowTime);
+    }
+    if (szThrowStatus[0] != '\0' && count < _MEWSTATS_ELEMENT_COUNT)
+    {
+        strcopy(szMessageElements[count++], _MEWSTATS_ELEMENT_SIZE, szThrowStatus);
     }
 
     char szMessage[_MEWSTATS_MESSAGE_SIZE] = "";
@@ -463,6 +470,45 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     FormatEx(buff, size, "%T", szPhrase, client, szBaseColor, szAccentColor, szTime);
+}
+
+static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int size)
+{
+    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    {
+        return;
+    }
+    if (g_iThrowStatus[client] != MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE)
+    {
+        return;
+    }
+    if (g_iThrowJumpTick[thrower] != _MEWSTATS_JUMP_TICK_UNKNOWN)
+    {
+        return;
+    }
+
+    char szPhrase[MEWSTATS_MESSAGE_KEY_SIZE] = "";
+    if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_TRUE)
+    {
+        strcopy(szPhrase, sizeof(szPhrase), MEWSTATS_MESSAGE_SHORT_NOJUMP_STATUS);
+    }
+    else if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_FALSE)
+    {
+        strcopy(szPhrase, sizeof(szPhrase), MEWSTATS_MESSAGE_NOJUMP_STATUS);
+    }
+    if (szPhrase[0] == '\0')
+    {
+        return;
+    }
+
+    char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (szBaseColor[0] == '\0')
+    {
+        return;
+    }
+
+    FormatEx(buff, size, "%T", szPhrase, client, szBaseColor);
 }
 
 static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
