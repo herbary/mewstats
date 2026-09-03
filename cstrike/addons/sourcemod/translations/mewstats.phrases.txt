@@ -6,7 +6,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}Run: {2}{3}"
+        "{1}Run:{2} {3}"
     }
 
     "Mewstats / Short Throw Speed"
@@ -15,7 +15,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}R: {2}{3}"
+        "{1}R:{2} {3}"
     }
 
     "Mewstats / Duck Throw Speed"
@@ -24,7 +24,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}Duck: {2}{3}"
+        "{1}Duck:{2} {3}"
     }
 
     "Mewstats / Short Duck Throw Speed"
@@ -33,7 +33,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}D: {2}{3}"
+        "{1}C:{2} {3}"
     }
 
     "Mewstats / Crouch Throw Speed"
@@ -42,7 +42,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}Crouch: {2}{3}"
+        "{1}Crouch:{2} {3}"
     }
 
     "Mewstats / Short Crouch Throw Speed"
@@ -51,7 +51,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}C: {2}{3}"
+        "{1}C:{2} {3}"
     }
 
     "Mewstats / Throw Angle"
@@ -60,7 +60,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}Angle: {2}{3}°"
+        "{1}Ang:{2} {3}°"
     }
 
     "Mewstats / Short Throw Angle"
@@ -69,7 +69,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}A: {2}{3}°"
+        "{1}A:{2} {3}°"
     }
 
     "Mewstats / Throw Time"
@@ -78,7 +78,7 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}Time: {2}{3}"
+        "{1}Time:{2} {3}"
     }
 
     "Mewstats / Short Throw Time"
@@ -87,6 +87,60 @@
         "{1:s},{2:s},{3:s}"
 
         "en"
-        "{1}T: {2}{3}"
+        "{1}T:{2} {3}"
+    }
+
+    "Mewstats / Throw Deviation"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Dev:{2} {3}°"
+    }
+
+    "Mewstats / Short Throw Deviation"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}D:{2} {3}°"
+    }
+
+    "Mewstats / Nade Velocity"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Vel:{2} {3}"
+    }
+
+    "Mewstats / Short Nade Velocity"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}V:{2} {3}"
+    }
+
+    "Mewstats / NoJump Status"
+    {
+        "#format"
+        "{1:s}"
+
+        "en"
+        "{1}NoJump"
+    }
+
+    "Mewstats / Short NoJump Status"
+    {
+        "#format"
+        "{1:s}"
+
+        "en"
+        "{1}NJ"
     }
 }
