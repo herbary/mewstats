@@ -5,6 +5,7 @@
 
 #define MEWSTATS_PROP_M_HTHROWER "m_hThrower"
 #define MEWSTATS_PROP_M_VECABSVELOCITY "m_vecAbsVelocity"
+#define MEWSTATS_PROP_M_VECORIGIN "m_vecOrigin"
 #define MEWSTATS_PROP_M_NTICKBASE "m_nTickBase"
 #define MEWSTATS_PROP_M_FFLAGS "m_fFlags"
 #define MEWSTATS_PROP_M_BDUCKED "m_bDucked"

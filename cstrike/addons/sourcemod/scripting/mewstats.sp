@@ -180,14 +180,23 @@ static void Frame_FlashbangSpawn(int ref)
         g_iThrowJumpTick[thrower] = _MEWSTATS_JUMP_TICK_UNKNOWN;
     }
 
-    Mewstats_PrintThrowStats(thrower, thrower);
+    Mewstats_PrintThrowStats(thrower, thrower, entity);
 }
 
-static void Mewstats_PrintThrowStats(int client, int thrower)
+static void Mewstats_PrintThrowStats(int client, int thrower, int entity)
 {
+    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    {
+        return;
+    }
+    if (!IsValidEntity(entity))
+    {
+        return;
+    }
+
 #define _MEWSTATS_MESSAGE_SIZE 256
 #define _MEWSTATS_ELEMENT_SIZE 64
-#define _MEWSTATS_ELEMENT_COUNT 6
+#define _MEWSTATS_ELEMENT_COUNT 5
 
     char szThrowSpeed[_MEWSTATS_ELEMENT_SIZE] = "";
     Mewstats_FormatThrowSpeed(client, thrower, szThrowSpeed, sizeof(szThrowSpeed));
@@ -197,6 +206,9 @@ static void Mewstats_PrintThrowStats(int client, int thrower)
 
     char szThrowTime[_MEWSTATS_ELEMENT_SIZE] = "";
     Mewstats_FormatThrowTime(client, thrower, szThrowTime, sizeof(szThrowTime));
+
+    char szThrowDeviation[_MEWSTATS_ELEMENT_SIZE] = "";
+    Mewstats_FormatThrowDeviation(client, thrower, entity, szThrowDeviation, sizeof(szThrowDeviation));
 
     char szThrowStatus[_MEWSTATS_ELEMENT_SIZE] = "";
     Mewstats_FormatThrowStatus(client, thrower, szThrowStatus, sizeof(szThrowStatus));
@@ -215,6 +227,10 @@ static void Mewstats_PrintThrowStats(int client, int thrower)
     if (szThrowTime[0] != '\0' && count < _MEWSTATS_ELEMENT_COUNT)
     {
         strcopy(szMessageElements[count++], _MEWSTATS_ELEMENT_SIZE, szThrowTime);
+    }
+    if (szThrowDeviation[0] != '\0' && count < _MEWSTATS_ELEMENT_SIZE)
+    {
+        strcopy(szMessageElements[count++], _MEWSTATS_ELEMENT_SIZE, szThrowDeviation);
     }
     if (szThrowStatus[0] != '\0' && count < _MEWSTATS_ELEMENT_COUNT)
     {
@@ -481,6 +497,99 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     FormatEx(buff, size, "%T", szPhrase, client, szBaseColor, szAccentColor, szTime);
+}
+
+static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, char[] buff, int size)
+{
+    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") != FeatureStatus_Available)
+    {
+        return;
+    }
+    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    {
+        return;
+    }
+    if (!IsValidEntity(entity))
+    {
+        return;
+    }
+    if (g_iThrowDeviation[client] != MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE)
+    {
+        return;
+    }
+
+    int partner = Timer_GetPartner(thrower);
+    if (!Mewstats_IsAliveClientInGame(partner))
+    {
+        return;
+    }
+
+    char szPhrase[MEWSTATS_MESSAGE_KEY_SIZE] = "";
+    if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_TRUE)
+    {
+        strcopy(szPhrase, sizeof(szPhrase), MEWSTATS_MESSAGE_SHORT_THROW_DEVIATION);
+    }
+    else if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_FALSE)
+    {
+        strcopy(szPhrase, sizeof(szPhrase), MEWSTATS_MESSAGE_THROW_DEVIATION);
+    }
+    if (szPhrase[0] == '\0')
+    {
+        return;
+    }
+
+    float flashbangVelocity[3];
+    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, flashbangVelocity);
+    flashbangVelocity[2] = 0.0;
+
+    float partnerVelocity[3];
+    GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, partnerVelocity);
+    partnerVelocity[2] = 0.0;
+
+    float speed = GetVectorLength(partnerVelocity, false);
+    if (speed <= 0.2)
+    {
+        float flashbangPosition[3];
+        GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
+
+        float partnerPosition[3];
+        GetClientAbsOrigin(partner, partnerPosition);
+
+        partnerVelocity[0] = partnerPosition[0] - flashbangPosition[0];
+        partnerVelocity[1] = partnerPosition[1] - flashbangPosition[1];
+    }
+
+    float angle = Mewstats_RelativeDeviation(flashbangVelocity, partnerVelocity);
+
+    char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (szBaseColor[0] == '\0')
+    {
+        return;
+    }
+
+    char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+    if (szAccentColor[0] == '\0')
+    {
+        return;
+    }
+
+    char szAngle[32] = "";
+    if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
+    {
+        FormatEx(szAngle, sizeof(szAngle), "%.0f", Mewstats_TruncateFloat(angle, 0));
+    }
+    else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
+    {
+        FormatEx(szAngle, sizeof(szAngle), "%.1f", Mewstats_TruncateFloat(angle, 1));
+    }
+    if (szAngle[0] == '\0')
+    {
+        return;
+    }
+
+    FormatEx(buff, size, "%T", szPhrase, client, szBaseColor, szAccentColor, szAngle);
 }
 
 static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int size)
