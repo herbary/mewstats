@@ -23,7 +23,8 @@
 #pragma newdecls required
 #pragma semicolon 1
 
-#define _MEWSTATS_JUMP_TICK_UNKNOWN -1
+#define _MEWSTATS_TICK_UNKNOWN -1
+#define _MEWSTATS_MLS_STORE_LIMIT 12
 
 public Plugin myinfo = {
     name = MEWSTATS_NAME,
@@ -89,6 +90,13 @@ char g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTAT
 char g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 
 int g_iThrowJumpTick[MAXPLAYERS + 1];
+int g_iSkyJumpTick[MAXPLAYERS + 1];
+int g_iFlashHitTick[MAXPLAYERS + 1];
+int g_iMlsFlashCount[MAXPLAYERS + 1];
+int g_iMlsLastPartner[MAXPLAYERS + 1];
+float g_fMlsPreHitSpeed[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
+float g_fMlsHitSpeed[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
+float g_fMlsFirstHitSpeed[MAXPLAYERS + 1];
 
 public APLRes AskPluginLoad2(Handle self, bool late, char[] error, int err_max)
 {
@@ -124,7 +132,11 @@ public void OnPluginStart()
 
 public void OnClientPutInServer(int client)
 {
-    g_iThrowJumpTick[client] = _MEWSTATS_JUMP_TICK_UNKNOWN;
+    g_iThrowJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
+    g_iSkyJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
+    g_iFlashHitTick[client] = _MEWSTATS_TICK_UNKNOWN;
+    g_iMlsFlashCount[client] = 0;
+    g_iMlsLastPartner[client] = -1;
 
     Mewstats_InitStateVars(client);
 
@@ -135,6 +147,79 @@ public void OnClientCookiesCached(int client)
 {
     Mewstats_InitStateVars(client);
 }
+
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2])
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Continue;
+    }
+
+    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
+    if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
+    {
+        if (tickcount - g_iSkyJumpTick[client] >= 2)
+        {
+            g_iSkyJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
+        }
+    }
+    if (g_iFlashHitTick[client] != _MEWSTATS_TICK_UNKNOWN)
+    {
+        if (tickcount - g_iFlashHitTick[client] >= 2)
+        {
+            g_iFlashHitTick[client] = _MEWSTATS_TICK_UNKNOWN;
+
+            float velocity[3];
+            GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
+
+            velocity[2] = 0.0;
+            float speed = GetVectorLength(velocity, false);
+
+            int index = g_iMlsFlashCount[client] - 1;
+            if (index >= _MEWSTATS_MLS_STORE_LIMIT)
+            {
+                g_fMlsFirstHitSpeed[client] = g_fMlsHitSpeed[client][0];
+            }
+            Mewstats_InsertMlsSpeed(client, g_fMlsHitSpeed, g_iMlsFlashCount[client] - 1, speed);
+        }
+    }
+
+    if (g_iSkyJumpTick[client] == _MEWSTATS_TICK_UNKNOWN && g_iFlashHitTick[client] == _MEWSTATS_TICK_UNKNOWN && Mewstats_IsFlag(flags, FL_ONGROUND))
+    {
+        Mewstats_PrintMlsStats(client, client);
+        Mewstats_PrintMlsStats(g_iMlsLastPartner[client], client);
+        for (int klient = 1; klient <= MaxClients; ++klient)
+        {
+            if (!Mewstats_IsPlayerInGame(klient))
+            {
+                continue;
+            }
+            if (IsPlayerAlive(klient))
+            {
+                continue;
+            }
+
+            int mode = GetEntProp(klient, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
+            if (mode < 4 || mode > 6)
+            {
+                continue;
+            }
+
+            int target = GetEntPropEnt(klient, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
+            if (target != client && target != g_iMlsLastPartner[client])
+            {
+                continue;
+            }
+
+            Mewstats_PrintMlsStats(klient, client);
+        }
+
+        g_iMlsFlashCount[client] = 0;
+    }
+
+    return Plugin_Continue;
+}
+
 
 static Action Hook_StartTouch(int client, int entity)
 {
@@ -209,40 +294,44 @@ static void Mewstats_ProcessSky(int client, int entity)
     }
 
     float diff = clientZ - entityZ - entityMaxs[2];
-    if (diff >= 0.0 && diff <= 2.0)
+    if (diff < 0.0 || diff > 2.0)
     {
-        float strength = entityVelocity[2];
-        if (strength <= 0.0 || strength > 290 || Mewstats_IsFlag(clientFlags, FL_DUCKING))
+        return;
+    }
+
+    float strength = entityVelocity[2];
+    if (strength <= 0.0 || strength > 290 || Mewstats_IsFlag(clientFlags, FL_DUCKING))
+    {
+        return;
+    }
+
+    g_iSkyJumpTick[client] = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_NTICKBASE);
+
+    Mewstats_PrintSkyStats(client, strength);
+    for (int klient = 1; klient <= MaxClients; ++klient)
+    {
+        if (!Mewstats_IsPlayerInGame(klient))
         {
-            return;
+            continue;
+        }
+        if (IsPlayerAlive(klient))
+        {
+            continue;
         }
 
-        Mewstats_PrintSkyStats(client, strength);
-        for (int klient = 1; klient <= MaxClients; ++klient)
+        int mode = GetEntProp(klient, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
+        if (mode < 4 || mode > 6)
         {
-            if (!Mewstats_IsPlayerInGame(klient))
-            {
-                continue;
-            }
-            if (IsPlayerAlive(klient))
-            {
-                continue;
-            }
-
-            int mode = GetEntProp(klient, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
-            if (mode < 4 || mode > 6)
-            {
-                continue;
-            }
-
-            int target = GetEntPropEnt(klient, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
-            if (target != client)
-            {
-                continue;
-            }
-
-            Mewstats_PrintSkyStats(klient, strength);
+            continue;
         }
+
+        int target = GetEntPropEnt(klient, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
+        if (target != client)
+        {
+            continue;
+        }
+
+        Mewstats_PrintSkyStats(klient, strength);
     }
 }
 
@@ -307,6 +396,169 @@ static void Mewstats_PrintSkyStats(int client, float strength)
 
 static void Mewstats_ProcessMls(int client, int entity)
 {
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return;
+    }
+    if (!IsValidEntity(entity))
+    {
+        return;
+    }
+
+    float entityVelocity[3];
+    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, entityVelocity);
+    if (entityVelocity[2] <= 0.0)
+    {
+        return;
+    }
+
+    float clientPosition[3];
+    GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, clientPosition);
+
+    float entityPosition[3];
+    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, entityPosition);
+
+    float entityMaxs[3];
+    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECMAXS, entityMaxs);
+
+    float diff = clientPosition[2] - entityPosition[2] - entityMaxs[2];
+    if (diff < 0.0 || diff > 2.0)
+    {
+        return;
+    }
+
+    g_iFlashHitTick[client] = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_NTICKBASE);
+
+    int thrower = GetEntPropEnt(entity, Prop_Data, MEWSTATS_PROP_M_HTHROWER);
+    g_iMlsLastPartner[client] = thrower;
+
+    ++g_iMlsFlashCount[client];
+
+    float clientVelocity[3];
+    GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, clientVelocity);
+
+    clientVelocity[2] = 0.0;
+    float clientSpeed = GetVectorLength(clientVelocity, false);
+
+    Mewstats_InsertMlsSpeed(client, g_fMlsPreHitSpeed, g_iMlsFlashCount[client] - 1, clientSpeed);
+}
+
+static void Mewstats_PrintMlsStats(int client, int target)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return;
+    }
+    if (!Mewstats_IsClientInGame(target))
+    {
+        return;
+    }
+    if (g_iMlsStats[client] != MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE)
+    {
+        return;
+    }
+    if (g_iMlsFlashCount[target] <= 0)
+    {
+        return;
+    }
+
+#define _MEWSTATS_MESSAGE_SIZE 256
+#define _MEWSTATS_ELEMENT_SIZE 64
+#define _MEWSTATS_ELEMENT_COUNT 3
+
+    int offset = g_iMlsFlashCount[target] - _MEWSTATS_MLS_STORE_LIMIT;
+    if (offset < 0)
+    {
+        offset = 0;
+    }
+
+    int count = g_iMlsFlashCount[target];
+    if (count > _MEWSTATS_MLS_STORE_LIMIT)
+    {
+        count = _MEWSTATS_MLS_STORE_LIMIT;
+    }
+
+    for (int i = 0; i < count; ++i)
+    {
+        int number = i + 1 + offset;
+
+        char szHitNumber[_MEWSTATS_ELEMENT_SIZE] = "";
+        FormatEx(szHitNumber, sizeof(szHitNumber), "%sx%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], number);
+
+        char szHitSpeed[_MEWSTATS_ELEMENT_SIZE] = "";
+        FormatEx(szHitSpeed, sizeof(szHitSpeed), "%s%.0f%s ->%s %.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], Mewstats_TruncateFloat(g_fMlsPreHitSpeed[target][i], 0), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], Mewstats_TruncateFloat(g_fMlsHitSpeed[target][i], 0));
+
+        char szHitGain[_MEWSTATS_ELEMENT_SIZE] = "";
+        if (number > 1)
+        {
+            float gain;
+            if (i == 0)
+            {
+                gain = g_fMlsPreHitSpeed[target][i] - g_fMlsFirstHitSpeed[target];
+            }
+            else
+            {
+                gain = g_fMlsPreHitSpeed[target][i] - g_fMlsHitSpeed[target][i - 1];
+            }
+
+            FormatEx(szHitGain, sizeof(szHitGain), "%s%s%.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], gain >= 0 ? "+" : "", Mewstats_TruncateFloat(gain, 0));
+        }
+
+        char szMessageElements[_MEWSTATS_ELEMENT_COUNT][_MEWSTATS_ELEMENT_SIZE];
+
+        int kount = 0;
+        if (szHitNumber[0] != '\0' && kount < _MEWSTATS_ELEMENT_COUNT)
+        {
+            strcopy(szMessageElements[kount++], _MEWSTATS_ELEMENT_SIZE, szHitNumber);
+        }
+        if (szHitSpeed[0] != '\0' && kount < _MEWSTATS_ELEMENT_COUNT)
+        {
+            strcopy(szMessageElements[kount++], _MEWSTATS_ELEMENT_SIZE, szHitSpeed);
+        }
+        if (szHitGain[0] != '\0' && kount < _MEWSTATS_ELEMENT_COUNT)
+        {
+            strcopy(szMessageElements[kount++], _MEWSTATS_ELEMENT_SIZE, szHitGain);
+        }
+
+        char szMessage[_MEWSTATS_MESSAGE_SIZE] = "";
+        for (int j = 0; j < kount; ++j)
+        {
+            if (j >= 1)
+            {
+                Format(szMessage, sizeof(szMessage), "%s%s%s", szMessage, g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_SEPARATOR], MEWSTATS_CHAT_SEPARATOR_LINE);
+            }
+            Format(szMessage, sizeof(szMessage), "%s%s", szMessage, szMessageElements[j]);
+        }
+        if (szMessage[0] == '\0')
+        {
+            return;
+        }
+
+        Mewstats_SayText2(client, g_iChatSound[client] == MEWSTATS_COOKIE_VALUE_CHAT_SOUND_TRUE && i == count - 1, szMessage);
+    }
+
+#undef _MEWSTATS_ELEMENT_COUNT
+#undef _MEWSTATS_ELEMENT_SIZE
+#undef _MEWSTATS_MESSAGE_SIZE
+}
+
+static void Mewstats_InsertMlsSpeed(int client, float storage[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT], int index, float value)
+{
+    if (index >= _MEWSTATS_MLS_STORE_LIMIT)
+    {
+        Mewstats_ShiftMlsSpeed(client, storage);
+        index = _MEWSTATS_MLS_STORE_LIMIT - 1;
+    }
+
+    storage[client][index] = value;
+}
+
+static void Mewstats_ShiftMlsSpeed(int client, float storage[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT])
+{
+    for (int i = 1; i < _MEWSTATS_MLS_STORE_LIMIT; ++i)
+    {
+        storage[client][i - 1] = storage[client][i];
+    }
 }
 
 public void OnEntityCreated(int entity, const char[] szClassname)
@@ -355,7 +607,7 @@ static void Frame_FlashbangSpawn(int ref)
     MoveType movetype = GetEntityMoveType(thrower);
     if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
     {
-        g_iThrowJumpTick[thrower] = _MEWSTATS_JUMP_TICK_UNKNOWN;
+        g_iThrowJumpTick[thrower] = _MEWSTATS_TICK_UNKNOWN;
     }
 
     Mewstats_PrintThrowStats(thrower, thrower, entity);
@@ -658,7 +910,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     int tick = 0;
-    if (g_iThrowJumpTick[thrower] != _MEWSTATS_JUMP_TICK_UNKNOWN)
+    if (g_iThrowJumpTick[thrower] != _MEWSTATS_TICK_UNKNOWN)
     {
         tick = GetEntProp(thrower, Prop_Send, MEWSTATS_PROP_M_NTICKBASE) - g_iThrowJumpTick[thrower] - 2;
         if (tick < 0)
@@ -805,7 +1057,7 @@ static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int
     {
         return;
     }
-    if (g_iThrowJumpTick[thrower] != _MEWSTATS_JUMP_TICK_UNKNOWN)
+    if (g_iThrowJumpTick[thrower] != _MEWSTATS_TICK_UNKNOWN)
     {
         return;
     }
@@ -1206,10 +1458,16 @@ static void Mewstats_CreateGlobals()
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_BASE] = MEWSTATS_THEME_STANDARD_COLOR_BASE;
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_ACCENT] = MEWSTATS_THEME_STANDARD_COLOR_ACCENT;
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR] = MEWSTATS_THEME_STANDARD_COLOR_SEPARATOR;
+    g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE] = MEWSTATS_THEME_STANDARD_COLOR_MLS_BASE;
+    g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT] = MEWSTATS_THEME_STANDARD_COLOR_MLS_ACCENT;
+    g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_MLS_SEPARATOR] = MEWSTATS_THEME_STANDARD_COLOR_MLS_SEPARATOR;
 
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_PURPLE][MEWSTATS_THEME_COLOR_INDEX_BASE] = MEWSTATS_THEME_PURPLE_COLOR_BASE;
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_PURPLE][MEWSTATS_THEME_COLOR_INDEX_ACCENT] = MEWSTATS_THEME_PURPLE_COLOR_ACCENT;
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_PURPLE][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR] = MEWSTATS_THEME_PURPLE_COLOR_SEPARATOR;
+    g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_PURPLE][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE] = MEWSTATS_THEME_PURPLE_COLOR_MLS_BASE;
+    g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_PURPLE][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT] = MEWSTATS_THEME_PURPLE_COLOR_MLS_ACCENT;
+    g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_PURPLE][MEWSTATS_THEME_COLOR_INDEX_MLS_SEPARATOR] = MEWSTATS_THEME_PURPLE_COLOR_MLS_SEPARATOR;
 
     // Chat Separator
     g_szChatSeparatorModes[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_SPACE] = MEWSTATS_MENU_ITEM_SPACE;
