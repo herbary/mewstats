@@ -3,7 +3,7 @@
 #endif
 #define _mewstats_theme_included_
 
-#include <mewjam/chat>
+#include <mewstats/chat>
 
 #define MEWSTATS_THEME_COLOR_INDEX_BASE 0
 #define MEWSTATS_THEME_COLOR_INDEX_ACCENT 1
