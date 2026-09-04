@@ -501,7 +501,8 @@ static void Mewstats_PrintMlsStats(int client, int target)
                 gain = g_fMlsPreHitSpeed[target][i] - g_fMlsHitSpeed[target][i - 1];
             }
 
-            FormatEx(szHitGain, sizeof(szHitGain), "%s%s%.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], gain >= 0 ? "+" : "", Mewstats_TruncateFloat(gain, 0));
+            int igain = RoundToFloor(gain);
+            FormatEx(szHitGain, sizeof(szHitGain), "%s%s%.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], igain >= 0 ? "+" : "", Mewstats_TruncateFloat(gain, 0));
         }
 
         char szMessageElements[_MEWSTATS_ELEMENT_COUNT][_MEWSTATS_ELEMENT_SIZE];
