@@ -37,7 +37,7 @@ stock bool Mewstats_SayText2(int client, bool bSound, const char[] szFormat, any
 
     BfWrite bfMsg = UserMessageToBfWrite(hSayText2);
     bfMsg.WriteByte(client);
-    bfMsg.WriteByte(view_as<int>(bSound));
+    bfMsg.WriteByte(bSound ? 1 : 0);
     bfMsg.WriteString(szMessage);
 
     EndMessage();

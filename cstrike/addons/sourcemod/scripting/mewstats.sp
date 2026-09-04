@@ -50,6 +50,7 @@ Cookie g_ckColorValues;
 Cookie g_ckValuePreicision;
 Cookie g_ckChatTheme;
 Cookie g_ckChatSeparator;
+Cookie g_ckChatSound;
 
 int g_iThrowSpeed[MAXPLAYERS + 1];
 int g_iThrowAngle[MAXPLAYERS + 1];
@@ -66,6 +67,7 @@ int g_iColorValues[MAXPLAYERS + 1];
 int g_iValuePrecision[MAXPLAYERS + 1];
 int g_iChatTheme[MAXPLAYERS + 1];
 int g_iChatSeparator[MAXPLAYERS + 1];
+int g_iChatSound[MAXPLAYERS + 1];
 
 char g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowAngleModes[MEWSTATS_COOKIE_VALUE_THROW_ANGLE_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -84,6 +86,7 @@ char g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_MENU_IT
 char g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_THEME_COLOR_COUNT][MEWSTATS_THEME_COLOR_SIZE];
 char g_szChatSeparatorModes[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_CHAT_SEPARATOR_SIZE];
+char g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 
 int g_iThrowJumpTick[MAXPLAYERS + 1];
 
@@ -299,7 +302,7 @@ static void Mewstats_PrintSkyStats(int client, float strength)
         return;
     }
 
-    Mewstats_SayText2(client, true, szMessage);
+    Mewstats_SayText2(client, g_iChatSound[client] == MEWSTATS_COOKIE_VALUE_CHAT_SOUND_TRUE, szMessage);
 }
 
 static void Mewstats_ProcessMls(int client, int entity)
@@ -451,7 +454,7 @@ static void Mewstats_PrintThrowStats(int client, int thrower, int entity)
         return;
     }
 
-    Mewstats_SayText2(client, true, szMessage);
+    Mewstats_SayText2(client, g_iChatSound[client] == MEWSTATS_COOKIE_VALUE_CHAT_SOUND_TRUE, szMessage);
 
 #undef _MEWSTATS_ELEMENT_COUNT
 #undef _MEWSTATS_ELEMENT_SIZE
@@ -930,6 +933,10 @@ static void Menu_Stats(int client, int position)
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_CHAT_SEPARATOR_FMT, g_szChatSeparatorModes[g_iChatSeparator[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_CHAT_SEPARATOR, szItem);
 
+    // Chat Sound
+    FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_CHAT_SOUND_FMT, g_szChatSoundModes[g_iChatSound[client]]);
+    menu.AddItem(MEWSTATS_MENU_SELECT_CHAT_SOUND, szItem);
+
     menu.ExitBackButton = false;
     menu.ExitButton = true;
 
@@ -1018,6 +1025,10 @@ static void MenuHandler_Stats(Menu menu, MenuAction action, int client, int inde
     {
         MenuSelect_ChatSeparator(client);
     }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_CHAT_SOUND))
+    {
+        MenuSelect_ChatSound(client);
+    }
 
     Menu_Stats(client, GetMenuSelectionPosition());
 }
@@ -1097,6 +1108,11 @@ static void MenuSelect_ChatSeparator(int client)
     Mewstats_CycleCookie(client, g_ckChatSeparator, g_iChatSeparator, MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT);
 }
 
+static void MenuSelect_ChatSound(int client)
+{
+    Mewstats_CycleCookie(client, g_ckChatSound, g_iChatSound, MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT);
+}
+
 static void Mewstats_CycleCookie(int client, Cookie cookie, int storage[MAXPLAYERS + 1], int limit)
 {
     if (!Mewstats_IsClientInGame(client))
@@ -1125,6 +1141,7 @@ static void Mewstats_InitStateVars(int client)
     g_iValuePrecision[client] = g_ckValuePreicision.GetInt(client, MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DEFAULT);
     g_iChatTheme[client] = g_ckChatTheme.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_THEME_DEFAULT);
     g_iChatSeparator[client] = g_ckChatSeparator.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_DEFAULT);
+    g_iChatSound[client] = g_ckChatSound.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SOUND_DEFAULT);
 }
 
 static void Mewstats_CreateGlobals()
@@ -1200,6 +1217,10 @@ static void Mewstats_CreateGlobals()
 
     g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_SPACE] = MEWSTATS_CHAT_SEPARATOR_SPACE;
     g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_LINE] = MEWSTATS_CHAT_SEPARATOR_LINE;
+
+    // Chat Sound
+    g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
+    g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 }
 
 static void Mewstats_CreateCookies()
@@ -1219,6 +1240,7 @@ static void Mewstats_CreateCookies()
     g_ckValuePreicision = RegClientCookie(MEWSTATS_COOKIE_NAME_VALUE_PRECISION, MEWSTATS_COOKIE_DESCRIPTION_VALUE_PRECISION, CookieAccess_Protected);
     g_ckChatTheme = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_THEME, MEWSTATS_COOKIE_DESCRIPTION_CHAT_THEME, CookieAccess_Protected);
     g_ckChatSeparator = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SEPARATOR, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SEPARATOR, CookieAccess_Protected);
+    g_ckChatSound = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SOUND, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SOUND, CookieAccess_Protected);
 }
 
 static void Mewstats_CreateCommands()
