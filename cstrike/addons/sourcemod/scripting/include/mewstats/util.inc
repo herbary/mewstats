@@ -108,7 +108,7 @@ stock bool Mewstats_IsAlivePlayerInGame(int client)
 
 stock bool Mewstats_IsPlayerInGame(int client)
 {
-    return Mewstats_IsClientInGame(client) && !IsFakeClient(client)
+    return Mewstats_IsClientInGame(client) && !IsFakeClient(client);
 }
 
 stock bool Mewstats_IsAlivePlayer(int client)
