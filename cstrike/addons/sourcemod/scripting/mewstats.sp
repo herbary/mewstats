@@ -338,11 +338,11 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     char szSpeed[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szSpeed, sizeof(szSpeed), "%.0f", speed);
+        FormatEx(szSpeed, sizeof(szSpeed), "%.0f", Mewstats_TruncateFloat(speed, 0));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
-        FormatEx(szSpeed, sizeof(szSpeed), "%.1f", speed);
+        FormatEx(szSpeed, sizeof(szSpeed), "%.1f", Mewstats_TruncateFloat(speed, 1));
     }
     if (szSpeed[0] == '\0')
     {
@@ -399,11 +399,11 @@ static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int 
     char szAngle[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%.0f", angle);
+        FormatEx(szAngle, sizeof(szAngle), "%.0f", Mewstats_TruncateFloat(angle, 0));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%.1f", angle);
+        FormatEx(szAngle, sizeof(szAngle), "%.1f", Mewstats_TruncateFloat(angle, 1));
     }
     if (szAngle[0] == '\0')
     {
@@ -474,7 +474,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     char szTime[32] = "";
-    FormatEx(szTime, sizeof(szTime), "%.2f", time);
+    FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(time, 2));
     if (szTime[0] == '\0')
     {
         return;

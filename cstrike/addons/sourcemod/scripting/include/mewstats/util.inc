@@ -4,10 +4,43 @@
 #define _mewstats_util_included_
 
 #include <clients>
+#include <float>
 
 stock bool Mewstats_IsFlag(int val, int flag)
 {
     return (val & flag) == flag;
+}
+
+stock int Mewstats_FloatSign(float val)
+{
+    if (val > 0.0)
+    {
+        return 1;
+    }
+    if (val < 0.0)
+    {
+        return -1;
+    }
+    return 0;
+}
+
+stock float Mewstats_TruncateFloat(float val, int digits)
+{
+    if (val == 0.0)
+    {
+        return 0.0;
+    }
+
+    int sign = Mewstats_FloatSign(val);
+    val = FloatAbs(val);
+
+    if (digits <= 0)
+    {
+        return float(sign) * float(RoundToFloor(val));
+    }
+
+    float factor = Pow(10.0, float(digits));
+    return float(sign) * float(RoundToFloor(val * factor)) / factor;
 }
 
 stock bool Mewstats_IsAlivePlayerInGame(int client)
