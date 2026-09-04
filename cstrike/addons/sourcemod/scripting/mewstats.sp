@@ -169,7 +169,6 @@ static void Hook_SpawnPost(int entity)
     RequestFrame(Frame_FlashbangSpawn, EntIndexToEntRef(entity));
 }
 
-
 static void Frame_FlashbangSpawn(int ref)
 {
     int entity = EntRefToEntIndex(ref);
