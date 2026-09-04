@@ -131,20 +131,6 @@ public void OnClientCookiesCached(int client)
     Mewstats_InitStateVars(client);
 }
 
-public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2])
-{
-    if (!Mewstats_IsAlivePlayerInGame(client))
-    {
-        return;
-    }
-
-    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
-    if (Mewstats_IsFlag(flags, FL_ONGROUND))
-    {
-        g_iThrowJumpTick[client] = _MEWSTATS_JUMP_TICK_UNKNOWN;
-    }
-}
-
 public void OnEntityCreated(int entity, const char[] szClassname)
 {
     if (!IsValidEntity(entity))
@@ -182,6 +168,18 @@ static void Frame_FlashbangSpawn(int ref)
     }
 
     int thrower = GetEntPropEnt(entity, Prop_Data, MEWSTATS_PROP_M_HTHROWER);
+    if (!Mewstats_IsAlivePlayerInGame(thrower))
+    {
+        return;
+    }
+
+    int flags = GetEntProp(thrower, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
+    MoveType movetype = GetEntityMoveType(thrower);
+    if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
+    {
+        g_iThrowJumpTick[thrower] = _MEWSTATS_JUMP_TICK_UNKNOWN;
+    }
+
     Mewstats_PrintThrowStats(thrower, thrower);
 }
 
