@@ -155,7 +155,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
-    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
         if (tickcount - g_iSkyJumpTick[client] >= 2)
@@ -184,6 +183,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
     }
 
+    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     if (g_iSkyJumpTick[client] == _MEWSTATS_TICK_UNKNOWN && g_iFlashHitTick[client] == _MEWSTATS_TICK_UNKNOWN && Mewstats_IsFlag(flags, FL_ONGROUND))
     {
         Mewstats_PrintMlsStats(client, client);
