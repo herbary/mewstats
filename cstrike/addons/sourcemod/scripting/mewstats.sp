@@ -181,6 +181,31 @@ static void Frame_FlashbangSpawn(int ref)
     }
 
     Mewstats_PrintThrowStats(thrower, thrower, entity);
+    for (int client = 1; client <= MaxClients; ++client)
+    {
+        if (!Mewstats_IsPlayerInGame(client))
+        {
+            continue;
+        }
+        if (IsPlayerAlive(client))
+        {
+            continue;
+        }
+
+        int mode = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
+        if (mode < 4 || mode > 6)
+        {
+            continue;
+        }
+
+        int target = GetEntPropEnt(client, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
+        if (target != thrower)
+        {
+            continue;
+        }
+
+        Mewstats_PrintThrowStats(client, thrower, entity);
+    }
 }
 
 static void Mewstats_PrintThrowStats(int client, int thrower, int entity)

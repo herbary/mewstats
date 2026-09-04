@@ -9,3 +9,5 @@
 #define MEWSTATS_PROP_M_NTICKBASE "m_nTickBase"
 #define MEWSTATS_PROP_M_FFLAGS "m_fFlags"
 #define MEWSTATS_PROP_M_BDUCKED "m_bDucked"
+#define MEWSTATS_PROP_M_IOBSERVERMODE "m_iObserverMode"
+#define MEWSTATS_PROP_M_HOBSERVERTARGET "m_hObserverTarget"
