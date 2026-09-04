@@ -124,11 +124,186 @@ public void OnClientPutInServer(int client)
     g_iThrowJumpTick[client] = _MEWSTATS_JUMP_TICK_UNKNOWN;
 
     Mewstats_InitStateVars(client);
+
+    SDKHook(client, SDKHook_StartTouch, Hook_StartTouch);
 }
 
 public void OnClientCookiesCached(int client)
 {
     Mewstats_InitStateVars(client);
+}
+
+static Action Hook_StartTouch(int client, int entity)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Continue;
+    }
+    if (!IsValidEntity(entity))
+    {
+        return Plugin_Continue;
+    }
+
+    char szClassname[MEWSTATS_CLASSNAME_SIZE] = "";
+    GetEntityClassname(entity, szClassname, sizeof(szClassname));
+
+    bool bProjectile = StrContains(szClassname, "_projectile") != -1;
+    if (!bProjectile)
+    {
+        Mewstats_ProcessSky(client, entity);
+        return Plugin_Continue;
+    }
+
+    Mewstats_ProcessMls(client, entity);
+    return Plugin_Continue;
+}
+
+static void Mewstats_ProcessSky(int client, int entity)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return;
+    }
+    if (!Mewstats_IsClientInGame(entity))
+    {
+        return;
+    }
+
+    // Client is Top
+    // Entity is Bottom
+
+    float clientPosition[3];
+    GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, clientPosition);
+
+    float entityPosition[3];
+    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, entityPosition);
+
+    float entityMaxs[3];
+    float entityVelocity[3];
+
+    float clientZ;
+    float entityZ;
+
+    int clientFlags;
+
+    if (clientPosition[2] < entityPosition[2])
+    {
+        clientZ = entityPosition[2];
+        entityZ = clientPosition[2];
+
+        GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECMAXS, entityMaxs);
+        GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, entityVelocity);
+        clientFlags = GetEntProp(entity, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
+    }
+    else
+    {
+        clientZ = clientPosition[2];
+        entityZ = entityPosition[2];
+
+        GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECMAXS, entityMaxs);
+        GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, entityVelocity);
+        clientFlags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
+    }
+
+    float diff = clientZ - entityZ - entityMaxs[2];
+    if (diff >= 0.0 && diff <= 2.0)
+    {
+        float strength = entityVelocity[2];
+        if (strength <= 0.0 || strength > 290 || Mewstats_IsFlag(clientFlags, FL_DUCKING))
+        {
+            return;
+        }
+
+        Mewstats_PrintSkyStats(client, strength);
+        for (int klient = 1; klient <= MaxClients; ++klient)
+        {
+            if (!Mewstats_IsPlayerInGame(klient))
+            {
+                continue;
+            }
+            if (IsPlayerAlive(klient))
+            {
+                continue;
+            }
+
+            int mode = GetEntProp(klient, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
+            if (mode < 4 || mode > 6)
+            {
+                continue;
+            }
+
+            int target = GetEntPropEnt(klient, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
+            if (target != client)
+            {
+                continue;
+            }
+
+            Mewstats_PrintSkyStats(klient, strength);
+        }
+    }
+}
+
+static void Mewstats_PrintSkyStats(int client, float strength)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return;
+    }
+    if (g_iSkyStats[client] != MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE)
+    {
+        return;
+    }
+
+    char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (szBaseColor[0] == '\0')
+    {
+        return;
+    }
+
+    char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_TRUE)
+    {
+        int color[3];
+        Mewstats_TransColor(strength / 290.0 * 100.0, 80.0, color);
+
+        FormatEx(szAccentColor, sizeof(szAccentColor), "\x07%02X%02X%02X", color[0], color[1], color[2]);
+    }
+    else if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_FALSE)
+    {
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+    }
+    if (szAccentColor[0] == '\0')
+    {
+        return;
+    }
+
+    char szStrength[32] = "";
+    if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
+    {
+        FormatEx(szStrength, sizeof(szStrength), "%.0f", Mewstats_TruncateFloat(strength, 0));
+    }
+    else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
+    {
+        FormatEx(szStrength, sizeof(szStrength), "%.1f", Mewstats_TruncateFloat(strength, 1));
+    }
+    if (szStrength[0] == '\0')
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%T", MEWSTATS_MESSAGE_SKY_JUMP, client, szBaseColor, szAccentColor, szStrength);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+}
+
+static void Mewstats_ProcessMls(int client, int entity)
+{
 }
 
 public void OnEntityCreated(int entity, const char[] szClassname)
@@ -482,7 +657,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     int tick = 0;
     if (g_iThrowJumpTick[thrower] != _MEWSTATS_JUMP_TICK_UNKNOWN)
     {
-        tick = GetEntProp(thrower, Prop_Send, MEWSTATS_PROP_M_NTICKBASE) - g_iThrowJumpTick[thrower] - 1;
+        tick = GetEntProp(thrower, Prop_Send, MEWSTATS_PROP_M_NTICKBASE) - g_iThrowJumpTick[thrower] - 2;
         if (tick < 0)
         {
             tick = 0;

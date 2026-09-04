@@ -143,4 +143,13 @@
         "en"
         "{1}NJ"
     }
+
+    "Mewstats / Sky Jump"
+    {
+        "#format"
+        "{1:s},{2:s},{3:s}"
+
+        "en"
+        "{1}Sky:{2} {3}"
+    }
 }

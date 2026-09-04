@@ -40,7 +40,7 @@ stock float Mewstats_TruncateFloat(float val, int digits)
     }
 
     float factor = Pow(10.0, float(digits));
-    return float(sign) * float(RoundToFloor(val * factor)) / factor;
+    return float(sign) * float(RoundToFloor(val * factor)) / factor + 0.0001;
 }
 
 stock float Mewstats_NormalizeVector(const float vec[3], float out[3])
