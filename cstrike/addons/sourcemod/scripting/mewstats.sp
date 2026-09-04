@@ -173,6 +173,10 @@ static void Hook_SpawnPost(int entity)
 static void Frame_FlashbangSpawn(int ref)
 {
     int entity = EntRefToEntIndex(ref);
+    if (entity == INVALID_ENT_REFERENCE)
+    {
+        return;
+    }
     if (!IsValidEntity(entity))
     {
         return;
