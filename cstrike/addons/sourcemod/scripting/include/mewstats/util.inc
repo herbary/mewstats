@@ -7,7 +7,7 @@
 
 stock bool Mewstats_IsFlag(int val, int flag)
 {
-    return view_as<bool>(val & flag);
+    return (val & flag) == flag;
 }
 
 stock bool Mewstats_IsAlivePlayerInGame(int client)
