@@ -4,7 +4,7 @@ No-op.
 ## Features
 ### Throw, Sky, and MLS stats
 * Throw Speed
-  > Shows player's speed when a flashbang is throwen.
+  > Shows player's speed when a flashbang is thrown.
 * Throw Angle
   > Shows player's pitch angle when a flashbang is thrown.
 * Throw Time
