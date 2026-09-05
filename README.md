@@ -15,7 +15,7 @@ No-op.
   > Shows NoJump label if a flashbang was thrown without a jump.
 * Sky Stats
   > Shows how strong a sky jump was, printed for both players.
-* Mls Stats
+* MLS Stats
   > Shows information on X's, printed for both players.
 
 ### Cosmetics, short names, and chat themes
