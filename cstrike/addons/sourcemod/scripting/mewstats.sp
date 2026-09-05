@@ -1501,11 +1501,11 @@ static Action Command_Snapshot(int client, int argc)
 
     char szMessage[256] = "";
     FormatEx(szMessage, sizeof(szMessage), "%s%sYour current & stored snapshots [%s%i%s;%s %i%s]", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, snapshot, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, bitflags, MEWSTATS_CHAT_COLOR_WHITE);
-
     if (szMessage[0] != '\0')
     {
         Mewstats_SayText2(client, true, szMessage);
     }
+
     return Plugin_Handled;
 }
 
