@@ -52,6 +52,7 @@ Cookie g_ckValuePreicision;
 Cookie g_ckChatTheme;
 Cookie g_ckChatSeparator;
 Cookie g_ckChatSound;
+Cookie g_ckLastBitflags;
 
 int g_iThrowSpeed[MAXPLAYERS + 1];
 int g_iThrowAngle[MAXPLAYERS + 1];
@@ -69,6 +70,7 @@ int g_iValuePrecision[MAXPLAYERS + 1];
 int g_iChatTheme[MAXPLAYERS + 1];
 int g_iChatSeparator[MAXPLAYERS + 1];
 int g_iChatSound[MAXPLAYERS + 1];
+int g_iLastBitflags[MAXPLAYERS + 1];
 
 char g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowAngleModes[MEWSTATS_COOKIE_VALUE_THROW_ANGLE_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -1377,6 +1379,137 @@ static void Mewstats_CycleCookie(int client, Cookie cookie, int storage[MAXPLAYE
     cookie.SetInt(client, storage[client]);
 }
 
+static Action Command_All(int client, int argc)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
+
+    int snapshot = Mewstats_GetSnapshot(client);
+    if (snapshot > 0)
+    {
+        // Saving Snapshot
+        g_iLastBitflags[client] = snapshot;
+        g_ckLastBitflags.SetInt(client, g_iLastBitflags[client]);
+
+        // Turning Things Off
+        g_iThrowSpeed[client] = MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
+        g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+
+        g_iThrowAngle[client] = MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
+        g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+
+        g_iThrowTime[client] = MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
+        g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+
+        g_iThrowDeviation[client] = MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
+        g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+
+        g_iThrowStatus[client] = MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
+        g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+
+        g_iSkyStats[client] = MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
+        g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+
+        g_iMlsStats[client] = MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
+        g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
+
+        PrintToChat(client, ">> You have disabled all boost stats [%i]", snapshot);
+    }
+    else
+    {
+        // Getting Snapshot
+        int bitflags = g_iLastBitflags[client];
+        if (bitflags == MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_UNKNOWN)
+        {
+            bitflags = 0;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT;
+            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT;
+        }
+
+        // Turning Things On
+        g_iThrowSpeed[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE : MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
+        g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+
+        g_iThrowAngle[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE : MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
+        g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+
+        g_iThrowTime[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE : MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
+        g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+
+        g_iThrowDeviation[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE : MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
+        g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+
+        g_iThrowStatus[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE : MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
+        g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+
+        g_iSkyStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE : MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
+        g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+
+        g_iMlsStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE : MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
+        g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
+
+        PrintToChat(client, ">> You have enabled all boost stats [%i]", bitflags);
+    }
+
+    return Plugin_Handled;
+}
+
+static Action Command_Snapshot(int client, int argc)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
+
+    int snapshot = Mewstats_GetSnapshot(client);
+    int bitflags = g_iLastBitflags[client];
+
+    PrintToChat(client, ">> Your current & stored snapshots [%i; %i]", snapshot, bitflags);
+
+    return Plugin_Handled;
+}
+
+static int Mewstats_GetSnapshot(int client)
+{
+    int bitflags = 0;
+    if (g_iThrowSpeed[client] == MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT;
+    }
+    if (g_iThrowAngle[client] == MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT;
+    }
+    if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT;
+    }
+    if (g_iThrowDeviation[client] == MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT;
+    }
+    if (g_iThrowStatus[client] == MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT;
+    }
+    if (g_iSkyStats[client] == MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT;
+    }
+    if (g_iMlsStats[client] == MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE)
+    {
+        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT;
+    }
+    return bitflags;
+}
+
 static void Mewstats_InitStateVars(int client)
 {
     g_iThrowSpeed[client] = g_ckThrowSpeed.GetInt(client, MEWSTATS_COOKIE_VALUE_THROW_SPEED_DEFAULT);
@@ -1395,6 +1528,7 @@ static void Mewstats_InitStateVars(int client)
     g_iChatTheme[client] = g_ckChatTheme.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_THEME_DEFAULT);
     g_iChatSeparator[client] = g_ckChatSeparator.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_DEFAULT);
     g_iChatSound[client] = g_ckChatSound.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SOUND_DEFAULT);
+    g_iLastBitflags[client] = g_ckLastBitflags.GetInt(client, MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_DEFAULT);
 }
 
 static void Mewstats_CreateGlobals()
@@ -1516,11 +1650,14 @@ static void Mewstats_CreateCookies()
     g_ckChatTheme = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_THEME, MEWSTATS_COOKIE_DESCRIPTION_CHAT_THEME, CookieAccess_Protected);
     g_ckChatSeparator = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SEPARATOR, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SEPARATOR, CookieAccess_Protected);
     g_ckChatSound = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SOUND, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SOUND, CookieAccess_Protected);
+    g_ckLastBitflags = RegClientCookie(MEWSTATS_COOKIE_NAME_LAST_BITFLAGS, MEWSTATS_COOKIE_DESCRIPTION_LAST_BITFLAGS, CookieAccess_Protected);
 }
 
 static void Mewstats_CreateCommands()
 {
     RegConsoleCmd("sm_bs", Command_Stats);
+    RegConsoleCmd("sm_bsall", Command_All);
+    RegConsoleCmd("sm_bssnap", Command_Snapshot);
 }
 
 static void Mewstats_HookEvents()
