@@ -38,7 +38,7 @@ No-op.
 * /bs
   > Opens the main menu of the plugin.
 * /bsall
-  > Remembers what you had enabled and enables or disables everything.
+  > Remembers what you had enabled and toggles everything off or on.
 * /bssnap
   > Shows what snapshot is currently in use and what it remembered.
 
