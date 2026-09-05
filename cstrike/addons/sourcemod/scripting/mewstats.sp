@@ -1432,7 +1432,13 @@ static Action Command_All(int client, int argc)
         g_iMlsStats[client] = MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
         g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
 
-        PrintToChat(client, ">> You have disabled all boost stats [%i]", snapshot);
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
     }
     else
     {
@@ -1472,7 +1478,12 @@ static Action Command_All(int client, int argc)
         g_iMlsStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE : MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
         g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
 
-        PrintToChat(client, ">> You have enabled all boost stats [%i]", bitflags);
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
     }
 
     return Plugin_Handled;
@@ -1488,8 +1499,13 @@ static Action Command_Snapshot(int client, int argc)
     int snapshot = Mewstats_GetSnapshot(client);
     int bitflags = g_iLastBitflags[client];
 
-    PrintToChat(client, ">> Your current & stored snapshots [%i; %i]", snapshot, bitflags);
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYour current & stored snapshots [%s%i%s;%s %i%s]", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, snapshot, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, bitflags, MEWSTATS_CHAT_COLOR_WHITE);
 
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
     return Plugin_Handled;
 }
 
