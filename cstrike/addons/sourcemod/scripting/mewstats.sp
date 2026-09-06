@@ -844,7 +844,7 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
         int color[3];
         if (ducking)
         {
-            Mewstats_TransColor(speed / 85.0 * 100.0, 90.0, color);
+            Mewstats_TransColor(speed / 85.0 * 100.0, 70.0, color);
         }
         else
         {
