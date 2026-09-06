@@ -1017,24 +1017,35 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, c
     GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, flashbangVelocity);
     flashbangVelocity[2] = 0.0;
 
-    float partnerVelocity[3];
-    GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, partnerVelocity);
-    partnerVelocity[2] = 0.0;
+    float flashbangPosition[3];
+    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
 
-    float speed = GetVectorLength(partnerVelocity, false);
-    if (speed <= 0.2)
-    {
-        float flashbangPosition[3];
-        GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
+    float partnerPosition[3];
+    GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, partnerPosition);
 
-        float partnerPosition[3];
-        GetClientAbsOrigin(partner, partnerPosition);
+    float partnerDirection[3];
+    partnerDirection[0] = partnerPosition[0] - flashbangPosition[0];
+    partnerDirection[1] = partnerPosition[1] - flashbangPosition[1];
+    partnerDirection[2] = 0.0;
 
-        partnerVelocity[0] = partnerPosition[0] - flashbangPosition[0];
-        partnerVelocity[1] = partnerPosition[1] - flashbangPosition[1];
-    }
+    // float partnerVelocity[3];
+    // GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, partnerVelocity);
+    // partnerVelocity[2] = 0.0;
 
-    float angle = Mewstats_RelativeDeviation(flashbangVelocity, partnerVelocity);
+    // float speed = GetVectorLength(partnerVelocity, false);
+    // if (speed <= 0.2)
+    // {
+    //     float flashbangPosition[3];
+    //     GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
+
+    //     float partnerPosition[3];
+    //     GetClientAbsOrigin(partner, partnerPosition);
+
+    //     partnerVelocity[0] = partnerPosition[0] - flashbangPosition[0];
+    //     partnerVelocity[1] = partnerPosition[1] - flashbangPosition[1];
+    // }
+
+    float angle = Mewstats_RelativeDeviation(flashbangVelocity, partnerDirection);
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
