@@ -200,7 +200,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
 
             velocity[2] = 0.0;
-            float speed = GetVectorLength(velocity, false);
+            float speed = GetVectorLength(velocity, false) + 0.0001;
 
             int index = g_iMlsFlashCount[client] - 1;
             if (index >= _MEWSTATS_MLS_STORE_LIMIT)
@@ -400,7 +400,7 @@ static void Mewstats_PrintSkyStats(int client, float strength)
     char szStrength[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szStrength, sizeof(szStrength), "%.0f", Mewstats_TruncateFloat(strength, 0));
+        FormatEx(szStrength, sizeof(szStrength), "%i", RoundToZero(strength));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
@@ -465,7 +465,7 @@ static void Mewstats_ProcessMls(int client, int entity)
     GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, clientVelocity);
 
     clientVelocity[2] = 0.0;
-    float clientSpeed = GetVectorLength(clientVelocity, false);
+    float clientSpeed = GetVectorLength(clientVelocity, false) + 0.0001;
 
     Mewstats_InsertMlsFloat(client, g_fMlsPreHitSpeed, g_iMlsFlashCount[client] - 1, clientSpeed);
 
@@ -531,29 +531,28 @@ static void Mewstats_PrintMlsStats(int client, int target)
         FormatEx(szHitNumber, sizeof(szHitNumber), "%sx%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], number);
 
         char szHitSpeed[_MEWSTATS_ELEMENT_SIZE] = "";
-        FormatEx(szHitSpeed, sizeof(szHitSpeed), "%s%.0f%s ->%s %.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], Mewstats_TruncateFloat(g_fMlsPreHitSpeed[target][i], 0), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], Mewstats_TruncateFloat(g_fMlsHitSpeed[target][i], 0));
+        FormatEx(szHitSpeed, sizeof(szHitSpeed), "%s%i%s ->%s %i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsPreHitSpeed[target][i]), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsHitSpeed[target][i]));
 
         char szHitGain[_MEWSTATS_ELEMENT_SIZE] = "";
         if (number > 1)
         {
-            float gain;
+            int gain;
             if (i == 0)
             {
-                gain = g_fMlsPreHitSpeed[target][i] - g_fMlsFirstHitSpeed[target];
+                gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsFirstHitSpeed[target]);
             }
             else
             {
-                gain = g_fMlsPreHitSpeed[target][i] - g_fMlsHitSpeed[target][i - 1];
+                gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsHitSpeed[target][i - 1]);
             }
 
-            int igain = RoundToFloor(gain);
-            FormatEx(szHitGain, sizeof(szHitGain), "%s%s%.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], igain >= 0 ? "+" : "", Mewstats_TruncateFloat(gain, 0));
+            FormatEx(szHitGain, sizeof(szHitGain), "%s%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], gain >= 0 ? "+" : "", gain);
         }
 
         char szHitDeviation[_MEWSTATS_ELEMENT_SIZE] = "";
         if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
         {
-            FormatEx(szHitDeviation, sizeof(szHitDeviation), "%s%.0f°", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], Mewstats_TruncateFloat(g_fMlsHitDeviation[target][i], 0));
+            FormatEx(szHitDeviation, sizeof(szHitDeviation), "%s%i°", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsHitDeviation[target][i]));
         }
 
         char szMessageElements[_MEWSTATS_ELEMENT_COUNT][_MEWSTATS_ELEMENT_SIZE];
@@ -829,7 +828,7 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     GetEntPropVector(thrower, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
 
     velocity[2] = 0.0;
-    float speed = GetVectorLength(velocity, false);
+    float speed = GetVectorLength(velocity, false) + 0.0001;
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
@@ -865,7 +864,7 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     char szSpeed[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szSpeed, sizeof(szSpeed), "%.0f", Mewstats_TruncateFloat(speed, 0));
+        FormatEx(szSpeed, sizeof(szSpeed), "%i", RoundToZero(speed));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
@@ -926,7 +925,7 @@ static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int 
     char szAngle[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%.0f", Mewstats_TruncateFloat(angle, 0));
+        FormatEx(szAngle, sizeof(szAngle), "%i", RoundToZero(angle));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
@@ -974,7 +973,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
             tick = 0;
         }
     }
-    float time = tick * GetTickInterval();
+    float time = tick * GetTickInterval() + 0.0001;
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
@@ -1100,7 +1099,7 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, c
     char szAngle[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%.0f", Mewstats_TruncateFloat(angle, 0));
+        FormatEx(szAngle, sizeof(szAngle), "%i", RoundToZero(angle));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
