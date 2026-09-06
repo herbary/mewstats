@@ -70,6 +70,7 @@ Cookie g_ckChatTheme;
 Cookie g_ckChatSeparator;
 Cookie g_ckChatSound;
 Cookie g_ckLastBitflags;
+Cookie g_ckMlsGain;
 Cookie g_ckMlsDeviation;
 
 int g_iThrowSpeed[MAXPLAYERS + 1];
@@ -89,6 +90,7 @@ int g_iChatTheme[MAXPLAYERS + 1];
 int g_iChatSeparator[MAXPLAYERS + 1];
 int g_iChatSound[MAXPLAYERS + 1];
 int g_iLastBitflags[MAXPLAYERS + 1];
+int g_iMlsGain[MAXPLAYERS + 1];
 int g_iMlsDeviation[MAXPLAYERS + 1];
 
 char g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -534,19 +536,22 @@ static void Mewstats_PrintMlsStats(int client, int target)
         FormatEx(szHitSpeed, sizeof(szHitSpeed), "%s%i%s ->%s %i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsPreHitSpeed[target][i]), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsHitSpeed[target][i]));
 
         char szHitGain[_MEWSTATS_ELEMENT_SIZE] = "";
-        if (number > 1)
+        if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE)
         {
-            int gain;
-            if (i == 0)
+            if (number > 1)
             {
-                gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsFirstHitSpeed[target]);
-            }
-            else
-            {
-                gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsHitSpeed[target][i - 1]);
-            }
+                int gain;
+                if (i == 0)
+                {
+                    gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsFirstHitSpeed[target]);
+                }
+                else
+                {
+                    gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsHitSpeed[target][i - 1]);
+                }
 
-            FormatEx(szHitGain, sizeof(szHitGain), "%s%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], gain >= 0 ? "+" : "", gain);
+                FormatEx(szHitGain, sizeof(szHitGain), "%s%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], gain >= 0 ? "+" : "", gain);
+            }
         }
 
         char szHitDeviation[_MEWSTATS_ELEMENT_SIZE] = "";
@@ -1554,6 +1559,43 @@ static Action Command_Snapshot(int client, int argc)
     return Plugin_Handled;
 }
 
+static Action Command_MlsGain(int client, int argc)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
+
+    if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE)
+    {
+        // Turning Off
+        g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE;
+        g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
+
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+    else if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE)
+    {
+        // Turning On
+        g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE;
+        g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
+
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+
+    return Plugin_Handled;
+}
+
 static Action Command_MlsDeviation(int client, int argc)
 {
     if (!Mewstats_IsClientInGame(client))
@@ -1568,7 +1610,7 @@ static Action Command_MlsDeviation(int client, int argc)
         g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
 
         char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s hit deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
         if (szMessage[0] != '\0')
         {
             Mewstats_SayText2(client, true, szMessage);
@@ -1581,7 +1623,7 @@ static Action Command_MlsDeviation(int client, int argc)
         g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
 
         char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s hit deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
         if (szMessage[0] != '\0')
         {
             Mewstats_SayText2(client, true, szMessage);
@@ -1644,6 +1686,7 @@ static void Mewstats_InitStateVars(int client)
     g_iChatSeparator[client] = g_ckChatSeparator.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_DEFAULT);
     g_iChatSound[client] = g_ckChatSound.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SOUND_DEFAULT);
     g_iLastBitflags[client] = g_ckLastBitflags.GetInt(client, MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_DEFAULT);
+    g_iMlsGain[client] = g_ckMlsGain.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_GAIN_DEFAULT);
     g_iMlsDeviation[client] = g_ckMlsDeviation.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_DEFAULT);
 }
 
@@ -1767,6 +1810,7 @@ static void Mewstats_CreateCookies()
     g_ckChatSeparator = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SEPARATOR, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SEPARATOR, CookieAccess_Protected);
     g_ckChatSound = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SOUND, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SOUND, CookieAccess_Protected);
     g_ckLastBitflags = RegClientCookie(MEWSTATS_COOKIE_NAME_LAST_BITFLAGS, MEWSTATS_COOKIE_DESCRIPTION_LAST_BITFLAGS, CookieAccess_Protected);
+    g_ckMlsGain = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_GAIN, MEWSTATS_COOKIE_DESCRIPTION_MLS_GAIN, CookieAccess_Protected);
     g_ckMlsDeviation = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_DEVIATION, MEWSTATS_COOKIE_DESCRIPTION_MLS_DEVIATION, CookieAccess_Protected);
 }
 
@@ -1775,6 +1819,7 @@ static void Mewstats_CreateCommands()
     RegConsoleCmd("sm_bs", Command_Stats);
     RegConsoleCmd("sm_bsall", Command_All);
     RegConsoleCmd("sm_bssnap", Command_Snapshot);
+    RegConsoleCmd("sm_bsmlsgain", Command_MlsGain);
     RegConsoleCmd("sm_bsmlsdev", Command_MlsDeviation);
 }
 
