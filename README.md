@@ -41,6 +41,8 @@ No-op.
   > Remembers what you had enabled and toggles everything off or on.
 * /bssnap
   > Shows what snapshot is currently in use and what it remembered.
+* /bsmlsgain
+  > Shows speed gained by the flyer on X's along with the sign.
 * /bsmlsdev
   > Shows hit angle between a thrown flashbang velocity and flyer's velocity directions.
 
