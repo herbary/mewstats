@@ -58,10 +58,9 @@ Cookie g_ckThrowAngle;
 Cookie g_ckThrowTime;
 Cookie g_ckThrowDeviation;
 Cookie g_ckThrowStatus;
+Cookie g_ckPartnerStats;
 Cookie g_ckSkyStats;
 Cookie g_ckMlsStats;
-// Cookie g_ckNadeVelocity;
-// Cookie g_ckPartnerStats;
 Cookie g_ckShortNames;
 Cookie g_ckCrouchName;
 Cookie g_ckColorValues;
@@ -78,10 +77,9 @@ int g_iThrowAngle[MAXPLAYERS + 1];
 int g_iThrowTime[MAXPLAYERS + 1];
 int g_iThrowDeviation[MAXPLAYERS + 1];
 int g_iThrowStatus[MAXPLAYERS + 1];
+int g_iPartnerStats[MAXPLAYERS + 1];
 int g_iSkyStats[MAXPLAYERS + 1];
 int g_iMlsStats[MAXPLAYERS + 1];
-// int g_iNadeVelocity[MAXPLAYERS + 1];
-// int g_iPartnerStats[MAXPLAYERS + 1];
 int g_iShortNames[MAXPLAYERS + 1];
 int g_iCrouchName[MAXPLAYERS + 1];
 int g_iColorValues[MAXPLAYERS + 1];
@@ -99,9 +97,10 @@ char g_szThrowTimeModes[MEWSTATS_COOKIE_VALUE_THROW_TIME_COUNT][MEWSTATS_MENU_IT
 char g_szThrowDeviationModes[MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowStatusModes[MEWSTATS_COOKIE_VALUE_THROW_STATUS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
+char g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szMlsStatsModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
-// char g_szNadeVelocityModes[MEWSTATS_COOKIE_VALUE_NADE_VELOCITY_COUNT][MEWSTATS_MENU_ITEM_SIZE];
-// char g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
+char g_szMlsGainModes[MEWSTATS_COOKIE_VALUE_MLS_GAIN_COUNT][MEWSTATS_MENU_ITEM_SIZE];
+char g_szMlsDeviationModes[MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szShortNamesModes[MEWSTATS_COOKIE_VALUE_SHORT_NAMES_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szCrouchNameModes[MEWSTATS_COOKIE_VALUE_CROUCH_NAME_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szColorValuesModes[MEWSTATS_COOKIE_VALUE_COLOR_VALUES_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -671,6 +670,18 @@ static void Frame_FlashbangSpawn(int ref)
     }
 
     Mewstats_PrintThrowStats(thrower, thrower, entity);
+    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available)
+    {
+        int partner = Timer_GetPartner(thrower);
+        if (Mewstats_IsAliveClientInGame(partner))
+        {
+            if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+            {
+                Mewstats_PrintThrowStats(partner, thrower, entity);
+            }
+        }
+    }
+
     for (int client = 1; client <= MaxClients; ++client)
     {
         if (!Mewstats_IsPlayerInGame(client))
@@ -1216,6 +1227,10 @@ static void Menu_Stats(int client, int position)
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_THROW_STATUS_FMT, g_szThrowStatusModes[g_iThrowStatus[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_THROW_STATUS, szItem);
 
+    // Partner Stats
+    FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_PARTNER_STATS_FMT, g_szPartnerStatsModes[g_iPartnerStats[client]]);
+    menu.AddItem(MEWSTATS_MENU_SELECT_PARTNER_STATS, szItem, GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
+
     // Sky Stats
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_SKY_STATS_FMT, g_szSkyStatsModes[g_iSkyStats[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_SKY_STATS, szItem);
@@ -1224,13 +1239,18 @@ static void Menu_Stats(int client, int position)
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_STATS_FMT, g_szMlsStatsModes[g_iMlsStats[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_MLS_STATS, szItem);
 
-    // // Nade Velocity
-    // FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_NADE_VELOCITY_FMT, g_szNadeVelocityModes[g_iNadeVelocity[client]]);
-    // menu.AddItem(MEWSTATS_MENU_SELECT_NADE_VELOCITY, szItem);
+    // MLS Gain
+    FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_GAIN_FMT, g_szMlsGainModes[g_iMlsGain[client]]);
+    menu.AddItem(MEWSTATS_MENU_SELECT_MLS_GAIN, szItem);
 
-    // // Partner Stats
-    // FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_PARTNER_STATS_FMT, g_szPartnerStatsModes[g_iPartnerStats[client]]);
-    // menu.AddItem(MEWSTATS_MENU_SELECT_PARTNER_STATS, szItem);
+    // MLS Deviation
+    FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_DEVIATION_FMT, g_szMlsDeviationModes[g_iMlsDeviation[client]]);
+    menu.AddItem(MEWSTATS_MENU_SELECT_MLS_DEVIATION, szItem);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        menu.AddItem("", "", ITEMDRAW_SPACER);
+    }
 
     // Short Names
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_SHORT_NAMES_FMT, g_szShortNamesModes[g_iShortNames[client]]);
@@ -1308,6 +1328,10 @@ static void MenuHandler_Stats(Menu menu, MenuAction action, int client, int inde
     {
         MenuSelect_ThrowStatus(client);
     }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_PARTNER_STATS))
+    {
+        MenuSelect_PartnerStats(client);
+    }
     else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_SKY_STATS))
     {
         MenuSelect_SkyStats(client);
@@ -1316,14 +1340,14 @@ static void MenuHandler_Stats(Menu menu, MenuAction action, int client, int inde
     {
         MenuSelect_MlsStats(client);
     }
-    // else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_NADE_VELOCITY))
-    // {
-    //     MenuSelect_NadeVelocity(client);
-    // }
-    // else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_PARTNER_STATS))
-    // {
-    //     MenuSelect_PartnerStats(client);
-    // }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_MLS_GAIN))
+    {
+        MenuSelect_MlsGain(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_MLS_DEVIATION))
+    {
+        MenuSelect_MlsDeviation(client);
+    }
     else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_SHORT_NAMES))
     {
         MenuSelect_ShortNames(client);
@@ -1381,6 +1405,11 @@ static void MenuSelect_ThrowStatus(int client)
     Mewstats_CycleCookie(client, g_ckThrowStatus, g_iThrowStatus, MEWSTATS_COOKIE_VALUE_THROW_STATUS_COUNT);
 }
 
+static void MenuSelect_PartnerStats(int client)
+{
+    Mewstats_CycleCookie(client, g_ckPartnerStats, g_iPartnerStats, MEWSTATS_COOKIE_VALUE_PARTNER_STATS_COUNT);
+}
+
 static void MenuSelect_SkyStats(int client)
 {
     Mewstats_CycleCookie(client, g_ckSkyStats, g_iSkyStats, MEWSTATS_COOKIE_VALUE_SKY_STATS_COUNT);
@@ -1391,15 +1420,15 @@ static void MenuSelect_MlsStats(int client)
     Mewstats_CycleCookie(client, g_ckMlsStats, g_iMlsStats, MEWSTATS_COOKIE_VALUE_MLS_STATS_COUNT);
 }
 
-// static void MenuSelect_NadeVelocity(int client)
-// {
-//     Mewstats_CycleCookie(client, g_ckNadeVelocity, g_iNadeVelocity, MEWSTATS_COOKIE_VALUE_NADE_VELOCITY_COUNT);
-// }
+static void MenuSelect_MlsGain(int client)
+{
+    Mewstats_CycleCookie(client, g_ckMlsGain, g_iMlsGain, MEWSTATS_COOKIE_VALUE_MLS_GAIN_COUNT);
+}
 
-// static void MenuSelect_PartnerStats(int client)
-// {
-//     Mewstats_CycleCookie(client, g_ckPartnerStats, g_iPartnerStats, MEWSTATS_COOKIE_VALUE_PARTNER_STATS_COUNT);
-// }
+static void MenuSelect_MlsDeviation(int client)
+{
+    Mewstats_CycleCookie(client, g_ckMlsDeviation, g_iMlsDeviation, MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_COUNT);
+}
 
 static void MenuSelect_ShortNames(int client)
 {
@@ -1559,79 +1588,79 @@ static Action Command_Snapshot(int client, int argc)
     return Plugin_Handled;
 }
 
-static Action Command_MlsGain(int client, int argc)
-{
-    if (!Mewstats_IsClientInGame(client))
-    {
-        return Plugin_Handled;
-    }
+// static Action Command_MlsGain(int client, int argc)
+// {
+//     if (!Mewstats_IsClientInGame(client))
+//     {
+//         return Plugin_Handled;
+//     }
 
-    if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE)
-    {
-        // Turning Off
-        g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE;
-        g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
+//     if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE)
+//     {
+//         // Turning Off
+//         g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE;
+//         g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
 
-        char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-        if (szMessage[0] != '\0')
-        {
-            Mewstats_SayText2(client, true, szMessage);
-        }
-    }
-    else if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE)
-    {
-        // Turning On
-        g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE;
-        g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
+//         char szMessage[256] = "";
+//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+//         if (szMessage[0] != '\0')
+//         {
+//             Mewstats_SayText2(client, true, szMessage);
+//         }
+//     }
+//     else if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE)
+//     {
+//         // Turning On
+//         g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE;
+//         g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
 
-        char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-        if (szMessage[0] != '\0')
-        {
-            Mewstats_SayText2(client, true, szMessage);
-        }
-    }
+//         char szMessage[256] = "";
+//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+//         if (szMessage[0] != '\0')
+//         {
+//             Mewstats_SayText2(client, true, szMessage);
+//         }
+//     }
 
-    return Plugin_Handled;
-}
+//     return Plugin_Handled;
+// }
 
-static Action Command_MlsDeviation(int client, int argc)
-{
-    if (!Mewstats_IsClientInGame(client))
-    {
-        return Plugin_Handled;
-    }
+// static Action Command_MlsDeviation(int client, int argc)
+// {
+//     if (!Mewstats_IsClientInGame(client))
+//     {
+//         return Plugin_Handled;
+//     }
 
-    if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
-    {
-        // Turning Off
-        g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE;
-        g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
+//     if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
+//     {
+//         // Turning Off
+//         g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE;
+//         g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
 
-        char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-        if (szMessage[0] != '\0')
-        {
-            Mewstats_SayText2(client, true, szMessage);
-        }
-    }
-    else if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE)
-    {
-        // Turning On
-        g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE;
-        g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
+//         char szMessage[256] = "";
+//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+//         if (szMessage[0] != '\0')
+//         {
+//             Mewstats_SayText2(client, true, szMessage);
+//         }
+//     }
+//     else if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE)
+//     {
+//         // Turning On
+//         g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE;
+//         g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
 
-        char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-        if (szMessage[0] != '\0')
-        {
-            Mewstats_SayText2(client, true, szMessage);
-        }
-    }
+//         char szMessage[256] = "";
+//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+//         if (szMessage[0] != '\0')
+//         {
+//             Mewstats_SayText2(client, true, szMessage);
+//         }
+//     }
 
-    return Plugin_Handled;
-}
+//     return Plugin_Handled;
+// }
 
 static int Mewstats_GetSnapshot(int client)
 {
@@ -1675,9 +1704,8 @@ static void Mewstats_InitStateVars(int client)
     g_iThrowDeviation[client] = g_ckThrowDeviation.GetInt(client, MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_DEFAULT);
     g_iThrowStatus[client] = g_ckThrowStatus.GetInt(client, MEWSTATS_COOKIE_VALUE_THROW_STATUS_DEFAULT);
     g_iSkyStats[client] = g_ckSkyStats.GetInt(client, MEWSTATS_COOKIE_VALUE_SKY_STATS_DEFAULT);
+    g_iPartnerStats[client] = g_ckPartnerStats.GetInt(client, MEWSTATS_COOKIE_VALUE_PARTNER_STATS_DEFAULT);
     g_iMlsStats[client] = g_ckMlsStats.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_STATS_DEFAULT);
-    // g_iNadeVelocity[client] = g_ckNadeVelocity.GetInt(client, MEWSTATS_COOKIE_VALUE_NADE_VELOCITY_DEFAULT);
-    // g_iPartnerStats[client] = g_ckPartnerStats.GetInt(client, MEWSTATS_COOKIE_VALUE_PARTNER_STATS_DEFAULT);
     g_iShortNames[client] = g_ckShortNames.GetInt(client, MEWSTATS_COOKIE_VALUE_SHORT_NAMES_DEFAULT);
     g_iCrouchName[client] = g_ckCrouchName.GetInt(client, MEWSTATS_COOKIE_VALUE_CROUCH_NAME_DEFAULT);
     g_iColorValues[client] = g_ckColorValues.GetInt(client, MEWSTATS_COOKIE_VALUE_COLOR_VALUES_DEFAULT);
@@ -1716,18 +1744,21 @@ static void Mewstats_CreateGlobals()
     g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
     g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 
+    // Partner Stats
+    g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
+    g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
+
     // MLS Stats
     g_szMlsStatsModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
     g_szMlsStatsModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 
-    // // Nade Velocity
-    // g_szNadeVelocityModes[MEWSTATS_COOKIE_VALUE_NADE_VELOCITY_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
-    // g_szNadeVelocityModes[MEWSTATS_COOKIE_VALUE_NADE_VELOCITY_XY] = MEWSTATS_MENU_ITEM_XY;
-    // g_szNadeVelocityModes[MEWSTATS_COOKIE_VALUE_NADE_VELOCITY_XYZ] = MEWSTATS_MENU_ITEM_XYZ;
+    // MLS Gain
+    g_szMlsGainModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
+    g_szMlsGainModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 
-    // // Partner Stats
-    // g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
-    // g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
+    // MLS Deviation
+    g_szMlsDeviationModes[MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
+    g_szMlsDeviationModes[MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 
     // Short Names
     g_szShortNamesModes[MEWSTATS_COOKIE_VALUE_SHORT_NAMES_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
@@ -1799,9 +1830,8 @@ static void Mewstats_CreateCookies()
     g_ckThrowDeviation = RegClientCookie(MEWSTATS_COOKIE_NAME_THROW_DEVIATION, MEWSTATS_COOKIE_DESCRIPTION_THROW_DEVIATION, CookieAccess_Protected);
     g_ckThrowStatus = RegClientCookie(MEWSTATS_COOKIE_NAME_THROW_STATUS, MEWSTATS_COOKIE_DESCRIPTION_THROW_STATUS, CookieAccess_Protected);
     g_ckSkyStats = RegClientCookie(MEWSTATS_COOKIE_NAME_SKY_STATS, MEWSTATS_COOKIE_DESCRIPTION_SKY_STATS, CookieAccess_Protected);
+    g_ckPartnerStats = RegClientCookie(MEWSTATS_COOKIE_NAME_PARTNER_STATS, MEWSTATS_COOKIE_DESCRIPTION_PARTNER_STATS, CookieAccess_Protected);
     g_ckMlsStats = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_STATS, MEWSTATS_COOKIE_DESCRIPTION_MLS_STATS, CookieAccess_Protected);
-    // g_ckNadeVelocity = RegClientCookie(MEWSTATS_COOKIE_NAME_NADE_VELOCITY, MEWSTATS_COOKIE_DESCRIPTION_NADE_VELOCITY, CookieAccess_Protected);
-    // g_ckPartnerStats = RegClientCookie(MEWSTATS_COOKIE_NAME_PARTNER_STATS, MEWSTATS_COOKIE_DESCRIPTION_PARTNER_STATS, CookieAccess_Protected);
     g_ckShortNames = RegClientCookie(MEWSTATS_COOKIE_NAME_SHORT_NAMES, MEWSTATS_COOKIE_DESCRIPTION_SHORT_NAMES, CookieAccess_Protected);
     g_ckCrouchName = RegClientCookie(MEWSTATS_COOKIE_NAME_CROUCH_NAME, MEWSTATS_COOKIE_DESCRIPTION_CROUCH_NAME, CookieAccess_Protected);
     g_ckColorValues = RegClientCookie(MEWSTATS_COOKIE_NAME_COLOR_VALUES, MEWSTATS_COOKIE_DESCRIPTION_COLOR_VALUES, CookieAccess_Protected);
@@ -1819,8 +1849,8 @@ static void Mewstats_CreateCommands()
     RegConsoleCmd("sm_bs", Command_Stats);
     RegConsoleCmd("sm_bsall", Command_All);
     RegConsoleCmd("sm_bssnap", Command_Snapshot);
-    RegConsoleCmd("sm_bsmlsgain", Command_MlsGain);
-    RegConsoleCmd("sm_bsmlsdev", Command_MlsDeviation);
+    // RegConsoleCmd("sm_bsmlsgain", Command_MlsGain);
+    // RegConsoleCmd("sm_bsmlsdev", Command_MlsDeviation);
 }
 
 static void Mewstats_HookEvents()
