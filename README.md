@@ -41,6 +41,8 @@ No-op.
   > Remembers what you had enabled and toggles everything off or on.
 * /bssnap
   > Shows what snapshot is currently in use and what it remembered.
+* /bsmlsdev
+  > Shows hit angle between a thrown flashbang velocity and flyer's velocity directions.
 
 ## License
 Licensed under the [GPL 3.0 license](./COPYING).
