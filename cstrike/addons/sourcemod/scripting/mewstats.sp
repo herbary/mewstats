@@ -70,6 +70,7 @@ Cookie g_ckChatTheme;
 Cookie g_ckChatSeparator;
 Cookie g_ckChatSound;
 Cookie g_ckLastBitflags;
+Cookie g_ckMlsDeviation;
 
 int g_iThrowSpeed[MAXPLAYERS + 1];
 int g_iThrowAngle[MAXPLAYERS + 1];
@@ -88,6 +89,7 @@ int g_iChatTheme[MAXPLAYERS + 1];
 int g_iChatSeparator[MAXPLAYERS + 1];
 int g_iChatSound[MAXPLAYERS + 1];
 int g_iLastBitflags[MAXPLAYERS + 1];
+int g_iMlsDeviation[MAXPLAYERS + 1];
 
 char g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowAngleModes[MEWSTATS_COOKIE_VALUE_THROW_ANGLE_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -116,6 +118,7 @@ int g_iMlsLastPartner[MAXPLAYERS + 1];
 float g_fMlsPreHitSpeed[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
 float g_fMlsHitSpeed[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
 float g_fMlsFirstHitSpeed[MAXPLAYERS + 1];
+float g_fMlsHitDeviation[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
 
 public APLRes AskPluginLoad2(Handle self, bool late, char[] error, int err_max)
 {
@@ -204,7 +207,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
             {
                 g_fMlsFirstHitSpeed[client] = g_fMlsHitSpeed[client][0];
             }
-            Mewstats_InsertMlsSpeed(client, g_fMlsHitSpeed, g_iMlsFlashCount[client] - 1, speed);
+            Mewstats_InsertMlsFloat(client, g_fMlsHitSpeed, g_iMlsFlashCount[client] - 1, speed);
         }
     }
 
@@ -464,7 +467,25 @@ static void Mewstats_ProcessMls(int client, int entity)
     clientVelocity[2] = 0.0;
     float clientSpeed = GetVectorLength(clientVelocity, false);
 
-    Mewstats_InsertMlsSpeed(client, g_fMlsPreHitSpeed, g_iMlsFlashCount[client] - 1, clientSpeed);
+    Mewstats_InsertMlsFloat(client, g_fMlsPreHitSpeed, g_iMlsFlashCount[client] - 1, clientSpeed);
+
+    float clientDirection[3];
+    if (clientSpeed > 0.2)
+    {
+        clientDirection[0] = clientVelocity[0];
+        clientDirection[1] = clientVelocity[1];
+    }
+    else
+    {
+        clientDirection[0] = clientPosition[0] - entityPosition[0];
+        clientDirection[1] = clientPosition[1] - entityPosition[1];
+    }
+    clientDirection[2] = 0.0;
+
+    entityVelocity[2] = 0.0;
+    float angle = Mewstats_RelativeDeviation(entityVelocity, clientDirection);
+
+    Mewstats_InsertMlsFloat(client, g_fMlsHitDeviation, g_iMlsFlashCount[client] - 1, angle);
 }
 
 static void Mewstats_PrintMlsStats(int client, int target)
@@ -488,7 +509,7 @@ static void Mewstats_PrintMlsStats(int client, int target)
 
 #define _MEWSTATS_MESSAGE_SIZE 256
 #define _MEWSTATS_ELEMENT_SIZE 64
-#define _MEWSTATS_ELEMENT_COUNT 3
+#define _MEWSTATS_ELEMENT_COUNT 4
 
     int offset = g_iMlsFlashCount[target] - _MEWSTATS_MLS_STORE_LIMIT;
     if (offset < 0)
@@ -529,6 +550,12 @@ static void Mewstats_PrintMlsStats(int client, int target)
             FormatEx(szHitGain, sizeof(szHitGain), "%s%s%.0f", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], igain >= 0 ? "+" : "", Mewstats_TruncateFloat(gain, 0));
         }
 
+        char szHitDeviation[_MEWSTATS_ELEMENT_SIZE] = "";
+        if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
+        {
+            FormatEx(szHitDeviation, sizeof(szHitDeviation), "%s%.0f°", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], Mewstats_TruncateFloat(g_fMlsHitDeviation[target][i], 0));
+        }
+
         char szMessageElements[_MEWSTATS_ELEMENT_COUNT][_MEWSTATS_ELEMENT_SIZE];
 
         int kount = 0;
@@ -543,6 +570,10 @@ static void Mewstats_PrintMlsStats(int client, int target)
         if (szHitGain[0] != '\0' && kount < _MEWSTATS_ELEMENT_COUNT)
         {
             strcopy(szMessageElements[kount++], _MEWSTATS_ELEMENT_SIZE, szHitGain);
+        }
+        if (szHitDeviation[0] != '\0' && kount < _MEWSTATS_ELEMENT_COUNT)
+        {
+            strcopy(szMessageElements[kount++], _MEWSTATS_ELEMENT_SIZE, szHitDeviation);
         }
 
         char szMessage[_MEWSTATS_MESSAGE_SIZE] = "";
@@ -567,7 +598,7 @@ static void Mewstats_PrintMlsStats(int client, int target)
 #undef _MEWSTATS_MESSAGE_SIZE
 }
 
-static void Mewstats_InsertMlsSpeed(int client, float storage[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT], int index, float value)
+static void Mewstats_InsertMlsFloat(int client, float storage[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT], int index, float value)
 {
     if (index >= _MEWSTATS_MLS_STORE_LIMIT)
     {
@@ -1450,7 +1481,6 @@ static Action Command_All(int client, int argc)
 
         char szMessage[256] = "";
         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-
         if (szMessage[0] != '\0')
         {
             Mewstats_SayText2(client, true, szMessage);
@@ -1525,6 +1555,43 @@ static Action Command_Snapshot(int client, int argc)
     return Plugin_Handled;
 }
 
+static Action Command_MlsDeviation(int client, int argc)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
+
+    if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
+    {
+        // Turning Off
+        g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE;
+        g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
+
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s hit deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+    else if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE)
+    {
+        // Turning On
+        g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE;
+        g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
+
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s hit deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+
+    return Plugin_Handled;
+}
+
 static int Mewstats_GetSnapshot(int client)
 {
     int bitflags = 0;
@@ -1578,6 +1645,7 @@ static void Mewstats_InitStateVars(int client)
     g_iChatSeparator[client] = g_ckChatSeparator.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_DEFAULT);
     g_iChatSound[client] = g_ckChatSound.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SOUND_DEFAULT);
     g_iLastBitflags[client] = g_ckLastBitflags.GetInt(client, MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_DEFAULT);
+    g_iMlsDeviation[client] = g_ckMlsDeviation.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_DEFAULT);
 }
 
 static void Mewstats_CreateGlobals()
@@ -1700,6 +1768,7 @@ static void Mewstats_CreateCookies()
     g_ckChatSeparator = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SEPARATOR, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SEPARATOR, CookieAccess_Protected);
     g_ckChatSound = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SOUND, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SOUND, CookieAccess_Protected);
     g_ckLastBitflags = RegClientCookie(MEWSTATS_COOKIE_NAME_LAST_BITFLAGS, MEWSTATS_COOKIE_DESCRIPTION_LAST_BITFLAGS, CookieAccess_Protected);
+    g_ckMlsDeviation = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_DEVIATION, MEWSTATS_COOKIE_DESCRIPTION_MLS_DEVIATION, CookieAccess_Protected);
 }
 
 static void Mewstats_CreateCommands()
@@ -1707,6 +1776,7 @@ static void Mewstats_CreateCommands()
     RegConsoleCmd("sm_bs", Command_Stats);
     RegConsoleCmd("sm_bsall", Command_All);
     RegConsoleCmd("sm_bssnap", Command_Snapshot);
+    RegConsoleCmd("sm_bsmlsdev", Command_MlsDeviation);
 }
 
 static void Mewstats_HookEvents()
