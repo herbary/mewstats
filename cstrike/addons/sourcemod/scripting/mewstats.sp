@@ -605,14 +605,14 @@ static void Mewstats_InsertMlsFloat(int client, float storage[MAXPLAYERS + 1][_M
 {
     if (index >= _MEWSTATS_MLS_STORE_LIMIT)
     {
-        Mewstats_ShiftMlsSpeed(client, storage);
+        Mewstats_ShiftMlsFloat(client, storage);
         index = _MEWSTATS_MLS_STORE_LIMIT - 1;
     }
 
     storage[client][index] = value;
 }
 
-static void Mewstats_ShiftMlsSpeed(int client, float storage[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT])
+static void Mewstats_ShiftMlsFloat(int client, float storage[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT])
 {
     for (int i = 1; i < _MEWSTATS_MLS_STORE_LIMIT; ++i)
     {
