@@ -10,7 +10,7 @@ No-op.
 * Throw Time
   > Shows time it took to release a flashbang after a jump.
 * Throw Deviation
-  > Shows angle between a thrown flashbang velocity and player's partner velocity directions.
+  > Shows angle between a thrown flashbang direction and player's partner position.
 * Throw Status
   > Shows NoJump label if a flashbang was thrown without a jump.
 * Sky Stats
