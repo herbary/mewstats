@@ -385,7 +385,7 @@ static void Mewstats_PrintSkyStats(int client, float strength)
     if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_TRUE)
     {
         int color[3];
-        Mewstats_TransColor(strength / 290.0 * 100.0, 80.0, color);
+        Mewstats_TransColor(strength / 289.0 * 100.0, 73.0, color);
 
         FormatEx(szAccentColor, sizeof(szAccentColor), "\x07%02X%02X%02X", color[0], color[1], color[2]);
     }
