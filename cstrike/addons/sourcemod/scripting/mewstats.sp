@@ -670,18 +670,6 @@ static void Frame_FlashbangSpawn(int ref)
     }
 
     Mewstats_PrintThrowStats(thrower, thrower, entity);
-    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available)
-    {
-        int partner = Timer_GetPartner(thrower);
-        if (Mewstats_IsAliveClientInGame(partner))
-        {
-            if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
-            {
-                Mewstats_PrintThrowStats(partner, thrower, entity);
-            }
-        }
-    }
-
     for (int client = 1; client <= MaxClients; ++client)
     {
         if (!Mewstats_IsPlayerInGame(client))
@@ -706,6 +694,47 @@ static void Frame_FlashbangSpawn(int ref)
         }
 
         Mewstats_PrintThrowStats(client, thrower, entity);
+    }
+
+    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available)
+    {
+        int partner = Timer_GetPartner(thrower);
+        if (Mewstats_IsAliveClientInGame(partner))
+        {
+            if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+            {
+                Mewstats_PrintThrowStats(partner, thrower, entity);
+            }
+
+            for (int client = 1; client <= MaxClients; ++client)
+            {
+                if (!Mewstats_IsPlayerInGame(client))
+                {
+                    continue;
+                }
+                if (IsPlayerAlive(client))
+                {
+                    continue;
+                }
+
+                int mode = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
+                if (mode < 4 || mode > 6)
+                {
+                    continue;
+                }
+
+                int target = GetEntPropEnt(client, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
+                if (target != partner)
+                {
+                    continue;
+                }
+
+                if (g_iPartnerStats[client] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+                {
+                    Mewstats_PrintThrowStats(client, thrower, entity);
+                }
+            }
+        }
     }
 }
 
