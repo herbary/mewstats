@@ -59,7 +59,9 @@ Cookie g_ckThrowTime;
 Cookie g_ckThrowDeviation;
 Cookie g_ckThrowStatus;
 Cookie g_ckPartnerStats;
+Cookie g_ckPartnerPrefix;
 Cookie g_ckSkyStats;
+Cookie g_ckSkyPrecision;
 Cookie g_ckMlsStats;
 Cookie g_ckShortNames;
 Cookie g_ckCrouchName;
@@ -78,7 +80,9 @@ int g_iThrowTime[MAXPLAYERS + 1];
 int g_iThrowDeviation[MAXPLAYERS + 1];
 int g_iThrowStatus[MAXPLAYERS + 1];
 int g_iPartnerStats[MAXPLAYERS + 1];
+int g_iPartnerPrefix[MAXPLAYERS + 1];
 int g_iSkyStats[MAXPLAYERS + 1];
+int g_iSkyPrecision[MAXPLAYERS + 1];
 int g_iMlsStats[MAXPLAYERS + 1];
 int g_iShortNames[MAXPLAYERS + 1];
 int g_iCrouchName[MAXPLAYERS + 1];
@@ -96,8 +100,11 @@ char g_szThrowAngleModes[MEWSTATS_COOKIE_VALUE_THROW_ANGLE_COUNT][MEWSTATS_MENU_
 char g_szThrowTimeModes[MEWSTATS_COOKIE_VALUE_THROW_TIME_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowDeviationModes[MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowStatusModes[MEWSTATS_COOKIE_VALUE_THROW_STATUS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
-char g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
+char g_szPartnerPrefixModes[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_COUNT][MEWSTATS_MENU_ITEM_SIZE];
+char g_szPartnerPrefixValues[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_COUNT][MEWSTATS_CHAT_PREFIX_SIZE];
+char g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
+char g_szSkyPrecisionModes[MEWSTATS_COOKIE_VALUE_SKY_PRECISION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szMlsStatsModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szMlsGainModes[MEWSTATS_COOKIE_VALUE_MLS_GAIN_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szMlsDeviationModes[MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -399,13 +406,28 @@ static void Mewstats_PrintSkyStats(int client, float strength)
     }
 
     char szStrength[32] = "";
-    if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
+    if (g_iSkyPrecision[client] == MEWSTATS_COOKIE_VALUE_SKY_PRECISION_MATCH)
+    {
+        if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
+        {
+            FormatEx(szStrength, sizeof(szStrength), "%i", RoundToZero(strength));
+        }
+        else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
+        {
+            FormatEx(szStrength, sizeof(szStrength), "%.1f", Mewstats_TruncateFloat(strength, 1));
+        }
+    }
+    else if (g_iSkyPrecision[client] == MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DOT_ZERO)
     {
         FormatEx(szStrength, sizeof(szStrength), "%i", RoundToZero(strength));
     }
-    else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
+    else if (g_iSkyPrecision[client] == MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DOT_ONE)
     {
         FormatEx(szStrength, sizeof(szStrength), "%.1f", Mewstats_TruncateFloat(strength, 1));
+    }
+    else if (g_iSkyPrecision[client] == MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DOT_TWO)
+    {
+        FormatEx(szStrength, sizeof(szStrength), "%.2f", Mewstats_TruncateFloat(strength, 2));
     }
     if (szStrength[0] == '\0')
     {
@@ -801,9 +823,12 @@ static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int
         }
         Format(szMessage, sizeof(szMessage), "%s%s", szMessage, szMessageElements[i]);
     }
-    if (bPartner)
+    if (szMessage[0] != '\0' && bPartner)
     {
-        Format(szMessage, sizeof(szMessage), "%s> %s", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR], szMessage);
+        if (g_iPartnerPrefix[client] != MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_NONE)
+        {
+            Format(szMessage, sizeof(szMessage), "%s%s %s", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR], g_szPartnerPrefixValues[g_iPartnerPrefix[client]], szMessage);
+        }
     }
     if (szMessage[0] == '\0')
     {
@@ -1264,9 +1289,17 @@ static void Menu_Stats(int client, int position)
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_PARTNER_STATS_FMT, g_szPartnerStatsModes[g_iPartnerStats[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_PARTNER_STATS, szItem, GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
 
+    // Partner Prefix
+    FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_PARTNER_PREFIX_FMT, g_szPartnerPrefixModes[g_iPartnerPrefix[client]]);
+    menu.AddItem(MEWSTATS_MENU_SELECT_PARTNER_PREFIX, szItem, GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED);
+
     // Sky Stats
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_SKY_STATS_FMT, g_szSkyStatsModes[g_iSkyStats[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_SKY_STATS, szItem);
+
+    // Sky Precision
+    FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_SKY_PRECISION_FMT, g_szSkyPrecisionModes[g_iSkyPrecision[client]]);
+    menu.AddItem(MEWSTATS_MENU_SELECT_SKY_PRECISION, szItem);
 
     // MLS Stats
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_STATS_FMT, g_szMlsStatsModes[g_iMlsStats[client]]);
@@ -1280,7 +1313,7 @@ static void Menu_Stats(int client, int position)
     FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_DEVIATION_FMT, g_szMlsDeviationModes[g_iMlsDeviation[client]]);
     menu.AddItem(MEWSTATS_MENU_SELECT_MLS_DEVIATION, szItem);
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 2; ++i)
     {
         menu.AddItem("", "", ITEMDRAW_SPACER);
     }
@@ -1365,9 +1398,17 @@ static void MenuHandler_Stats(Menu menu, MenuAction action, int client, int inde
     {
         MenuSelect_PartnerStats(client);
     }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_PARTNER_PREFIX))
+    {
+        MenuSelect_PartnerPrefix(client);
+    }
     else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_SKY_STATS))
     {
         MenuSelect_SkyStats(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_SKY_PRECISION))
+    {
+        MenuSelect_SkyPrecision(client);
     }
     else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_MLS_STATS))
     {
@@ -1443,9 +1484,19 @@ static void MenuSelect_PartnerStats(int client)
     Mewstats_CycleCookie(client, g_ckPartnerStats, g_iPartnerStats, MEWSTATS_COOKIE_VALUE_PARTNER_STATS_COUNT);
 }
 
+static void MenuSelect_PartnerPrefix(int client)
+{
+    Mewstats_CycleCookie(client, g_ckPartnerPrefix, g_iPartnerPrefix, MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_COUNT);
+}
+
 static void MenuSelect_SkyStats(int client)
 {
     Mewstats_CycleCookie(client, g_ckSkyStats, g_iSkyStats, MEWSTATS_COOKIE_VALUE_SKY_STATS_COUNT);
+}
+
+static void MenuSelect_SkyPrecision(int client)
+{
+    Mewstats_CycleCookie(client, g_ckSkyPrecision, g_iSkyPrecision, MEWSTATS_COOKIE_VALUE_SKY_PRECISION_COUNT);
 }
 
 static void MenuSelect_MlsStats(int client)
@@ -1736,8 +1787,10 @@ static void Mewstats_InitStateVars(int client)
     g_iThrowTime[client] = g_ckThrowTime.GetInt(client, MEWSTATS_COOKIE_VALUE_THROW_TIME_DEFAULT);
     g_iThrowDeviation[client] = g_ckThrowDeviation.GetInt(client, MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_DEFAULT);
     g_iThrowStatus[client] = g_ckThrowStatus.GetInt(client, MEWSTATS_COOKIE_VALUE_THROW_STATUS_DEFAULT);
-    g_iSkyStats[client] = g_ckSkyStats.GetInt(client, MEWSTATS_COOKIE_VALUE_SKY_STATS_DEFAULT);
     g_iPartnerStats[client] = g_ckPartnerStats.GetInt(client, MEWSTATS_COOKIE_VALUE_PARTNER_STATS_DEFAULT);
+    g_iPartnerPrefix[client] = g_ckPartnerPrefix.GetInt(client, MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_DEFAULT);
+    g_iSkyStats[client] = g_ckSkyStats.GetInt(client, MEWSTATS_COOKIE_VALUE_SKY_STATS_DEFAULT);
+    g_iSkyPrecision[client] = g_ckSkyPrecision.GetInt(client, MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DEFAULT);
     g_iMlsStats[client] = g_ckMlsStats.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_STATS_DEFAULT);
     g_iShortNames[client] = g_ckShortNames.GetInt(client, MEWSTATS_COOKIE_VALUE_SHORT_NAMES_DEFAULT);
     g_iCrouchName[client] = g_ckCrouchName.GetInt(client, MEWSTATS_COOKIE_VALUE_CROUCH_NAME_DEFAULT);
@@ -1773,13 +1826,30 @@ static void Mewstats_CreateGlobals()
     g_szThrowStatusModes[MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
     g_szThrowStatusModes[MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 
+    // Partner Stats
+    g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
+    g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
+
+    // Partner Prefix
+    g_szPartnerPrefixModes[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_NONE] = MEWSTATS_MENU_ITEM_NONE;
+    g_szPartnerPrefixModes[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_BRACKET] = MEWSTATS_MENU_ITEM_BRACKET;
+    g_szPartnerPrefixModes[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_AT] = MEWSTATS_MENU_ITEM_AT;
+    g_szPartnerPrefixModes[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_ASTERISK] = MEWSTATS_MENU_ITEM_ASTERISK;
+
+    g_szPartnerPrefixValues[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_NONE] = "";
+    g_szPartnerPrefixValues[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_BRACKET] = ">";
+    g_szPartnerPrefixValues[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_AT] = "@";
+    g_szPartnerPrefixValues[MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_ASTERISK] = "*";
+
     // Sky Stats
     g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
     g_szSkyStatsModes[MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
 
-    // Partner Stats
-    g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
-    g_szPartnerStatsModes[MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
+    // Sky Precision
+    g_szSkyPrecisionModes[MEWSTATS_COOKIE_VALUE_SKY_PRECISION_MATCH] = MEWSTATS_MENU_ITEM_MATCH;
+    g_szSkyPrecisionModes[MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DOT_ZERO] = MEWSTATS_MENU_ITEM_DOT_ZERO;
+    g_szSkyPrecisionModes[MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DOT_ONE] = MEWSTATS_MENU_ITEM_DOT_ONE;
+    g_szSkyPrecisionModes[MEWSTATS_COOKIE_VALUE_SKY_PRECISION_DOT_TWO] = MEWSTATS_MENU_ITEM_DOT_TWO;
 
     // MLS Stats
     g_szMlsStatsModes[MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
@@ -1862,8 +1932,10 @@ static void Mewstats_CreateCookies()
     g_ckThrowTime = RegClientCookie(MEWSTATS_COOKIE_NAME_THROW_TIME, MEWSTATS_COOKIE_DESCRIPTION_THROW_TIME, CookieAccess_Protected);
     g_ckThrowDeviation = RegClientCookie(MEWSTATS_COOKIE_NAME_THROW_DEVIATION, MEWSTATS_COOKIE_DESCRIPTION_THROW_DEVIATION, CookieAccess_Protected);
     g_ckThrowStatus = RegClientCookie(MEWSTATS_COOKIE_NAME_THROW_STATUS, MEWSTATS_COOKIE_DESCRIPTION_THROW_STATUS, CookieAccess_Protected);
-    g_ckSkyStats = RegClientCookie(MEWSTATS_COOKIE_NAME_SKY_STATS, MEWSTATS_COOKIE_DESCRIPTION_SKY_STATS, CookieAccess_Protected);
     g_ckPartnerStats = RegClientCookie(MEWSTATS_COOKIE_NAME_PARTNER_STATS, MEWSTATS_COOKIE_DESCRIPTION_PARTNER_STATS, CookieAccess_Protected);
+    g_ckPartnerPrefix = RegClientCookie(MEWSTATS_COOKIE_NAME_PARTNER_PREFIX, MEWSTATS_COOKIE_DESCRIPTION_PARTNER_PREFIX, CookieAccess_Protected);
+    g_ckSkyStats = RegClientCookie(MEWSTATS_COOKIE_NAME_SKY_STATS, MEWSTATS_COOKIE_DESCRIPTION_SKY_STATS, CookieAccess_Protected);
+    g_ckSkyPrecision = RegClientCookie(MEWSTATS_COOKIE_NAME_SKY_PRECISION, MEWSTATS_COOKIE_DESCRIPTION_SKY_PRECISION, CookieAccess_Protected);
     g_ckMlsStats = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_STATS, MEWSTATS_COOKIE_DESCRIPTION_MLS_STATS, CookieAccess_Protected);
     g_ckShortNames = RegClientCookie(MEWSTATS_COOKIE_NAME_SHORT_NAMES, MEWSTATS_COOKIE_DESCRIPTION_SHORT_NAMES, CookieAccess_Protected);
     g_ckCrouchName = RegClientCookie(MEWSTATS_COOKIE_NAME_CROUCH_NAME, MEWSTATS_COOKIE_DESCRIPTION_CROUCH_NAME, CookieAccess_Protected);
