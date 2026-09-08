@@ -669,7 +669,7 @@ static void Frame_FlashbangSpawn(int ref)
         g_iThrowJumpTick[thrower] = _MEWSTATS_TICK_UNKNOWN;
     }
 
-    Mewstats_PrintThrowStats(thrower, thrower, entity);
+    Mewstats_PrintThrowStats(false, thrower, thrower, entity);
     for (int client = 1; client <= MaxClients; ++client)
     {
         if (!Mewstats_IsPlayerInGame(client))
@@ -693,7 +693,7 @@ static void Frame_FlashbangSpawn(int ref)
             continue;
         }
 
-        Mewstats_PrintThrowStats(client, thrower, entity);
+        Mewstats_PrintThrowStats(false, client, thrower, entity);
     }
 
     if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available)
@@ -703,7 +703,7 @@ static void Frame_FlashbangSpawn(int ref)
         {
             if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
             {
-                Mewstats_PrintThrowStats(partner, thrower, entity);
+                Mewstats_PrintThrowStats(true, partner, thrower, entity);
             }
 
             for (int client = 1; client <= MaxClients; ++client)
@@ -731,14 +731,14 @@ static void Frame_FlashbangSpawn(int ref)
 
                 if (g_iPartnerStats[client] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
                 {
-                    Mewstats_PrintThrowStats(client, thrower, entity);
+                    Mewstats_PrintThrowStats(true, client, thrower, entity);
                 }
             }
         }
     }
 }
 
-static void Mewstats_PrintThrowStats(int client, int thrower, int entity)
+static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int entity)
 {
     if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
     {
@@ -800,6 +800,10 @@ static void Mewstats_PrintThrowStats(int client, int thrower, int entity)
             Format(szMessage, sizeof(szMessage), "%s%s%s", szMessage, g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR], g_szChatSeparatorValues[g_iChatSeparator[client]]);
         }
         Format(szMessage, sizeof(szMessage), "%s%s", szMessage, szMessageElements[i]);
+    }
+    if (bPartner)
+    {
+        Format(szMessage, sizeof(szMessage), "%s> %s", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR], szMessage);
     }
     if (szMessage[0] == '\0')
     {
