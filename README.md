@@ -14,9 +14,13 @@ No-op.
 * Throw Status
   > Shows NoJump label if a flashbang was thrown without a jump.
 * Partner Stats
-  > Shows player's partner throw stats in the style of prefrences.
+  > Shows player's partner throw stats in the style of preferences.
+* Partner Prefix
+  > Shows prefix for player's partner throw stats in the style of preferences.
 * Sky Stats
   > Shows how strong a sky jump was, printed for both players.
+* Sky Precision
+  > Select how precise player's sky stat will be, from Match, .0 to .2 precision.
 * MLS Stats
   > Shows information on X's, printed for both players.
 * MLS Gain
