@@ -70,9 +70,14 @@ Cookie g_ckValuePreicision;
 Cookie g_ckChatTheme;
 Cookie g_ckChatSeparator;
 Cookie g_ckChatSound;
-Cookie g_ckLastBitflags;
 Cookie g_ckMlsGain;
 Cookie g_ckMlsDeviation;
+Cookie g_ckCustomBaseColor;
+Cookie g_ckCustomAccentColor;
+Cookie g_ckCustomSeparatorColor;
+Cookie g_ckCustomMlsBaseColor;
+Cookie g_ckCustomMlsAccentColor;
+Cookie g_ckCustomMlsSeparatorColor;
 
 int g_iThrowSpeed[MAXPLAYERS + 1];
 int g_iThrowAngle[MAXPLAYERS + 1];
@@ -91,9 +96,14 @@ int g_iValuePrecision[MAXPLAYERS + 1];
 int g_iChatTheme[MAXPLAYERS + 1];
 int g_iChatSeparator[MAXPLAYERS + 1];
 int g_iChatSound[MAXPLAYERS + 1];
-int g_iLastBitflags[MAXPLAYERS + 1];
 int g_iMlsGain[MAXPLAYERS + 1];
 int g_iMlsDeviation[MAXPLAYERS + 1];
+char g_szCustomBaseColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
+char g_szCustomAccentColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
+char g_szCustomSeparatorColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
+char g_szCustomMlsBaseColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
+char g_szCustomMlsAccentColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
+char g_szCustomMlsSeparatorColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
 
 char g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowAngleModes[MEWSTATS_COOKIE_VALUE_THROW_ANGLE_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -113,7 +123,7 @@ char g_szCrouchNameModes[MEWSTATS_COOKIE_VALUE_CROUCH_NAME_COUNT][MEWSTATS_MENU_
 char g_szColorValuesModes[MEWSTATS_COOKIE_VALUE_COLOR_VALUES_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szValuePrecisionModes[MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_MENU_ITEM_SIZE];
-char g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_THEME_COLOR_COUNT][MEWSTATS_THEME_COLOR_SIZE];
+char g_szChatThemeColors[MEWSTATS_THEME_COUNT][MEWSTATS_THEME_COLOR_COUNT][MEWSTATS_THEME_COLOR_SIZE];
 char g_szChatSeparatorModes[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_CHAT_SEPARATOR_SIZE];
 char g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -127,6 +137,19 @@ float g_fMlsPreHitSpeed[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
 float g_fMlsHitSpeed[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
 float g_fMlsFirstHitSpeed[MAXPLAYERS + 1];
 float g_fMlsHitDeviation[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
+
+#define _MEWSTATS_AWAIT_BASE_COLOR 1
+#define _MEWSTATS_AWAIT_ACCENT_COLOR 2
+#define _MEWSTATS_AWAIT_SEPARATOR_COLOR 3
+#define _MEWSTATS_AWAIT_MLS_BASE_COLOR 4
+#define _MEWSTATS_AWAIT_MLS_ACCENT_COLOR 5
+#define _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR 6
+#define _MEWSTATS_AWAIT_MIN _MEWSTATS_AWAIT_BASE_COLOR
+#define _MEWSTATS_AWAIT_MAX _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR
+#define _MEWSTATS_AWAIT_SIZE 256
+
+int g_iAwaitInput[MAXPLAYERS + 1];
+int g_iConfigMenuPosition[MAXPLAYERS + 1];
 
 public APLRes AskPluginLoad2(Handle self, bool late, char[] error, int err_max)
 {
@@ -142,6 +165,7 @@ public void OnPluginStart()
     Mewstats_CreateCookies();
     Mewstats_CreateCommands();
     Mewstats_HookEvents();
+    Mewstats_HookCommands();
 
     if (!g_bLateLoaded)
     {
@@ -167,6 +191,8 @@ public void OnClientPutInServer(int client)
     g_iFlashHitTick[client] = _MEWSTATS_TICK_UNKNOWN;
     g_iMlsFlashCount[client] = 0;
     g_iMlsLastPartner[client] = -1;
+    g_iAwaitInput[client] = 0;
+    g_iConfigMenuPosition[client] = 0;
 
     Mewstats_InitStateVars(client);
 
@@ -382,7 +408,14 @@ static void Mewstats_PrintSkyStats(int client, float strength)
     }
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomBaseColor[client]);
+    }
     if (szBaseColor[0] == '\0')
     {
         return;
@@ -398,7 +431,14 @@ static void Mewstats_PrintSkyStats(int client, float strength)
     }
     else if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_FALSE)
     {
-        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+        if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+        {
+            strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+        }
+        else
+        {
+            strcopy(szAccentColor, sizeof(szAccentColor), g_szCustomAccentColor[client]);
+        }
     }
     if (szAccentColor[0] == '\0')
     {
@@ -530,6 +570,26 @@ static void Mewstats_PrintMlsStats(int client, int target)
         return;
     }
 
+    char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    char szSeparatorColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE]);
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT]);
+        strcopy(szSeparatorColor, sizeof(szSeparatorColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_SEPARATOR]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomMlsBaseColor[client]);
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szCustomAccentColor[client]);
+        strcopy(szSeparatorColor, sizeof(szSeparatorColor), g_szCustomSeparatorColor[client]);
+    }
+    if (szBaseColor[0] == '\0' || szAccentColor[0] == '\0' || szSeparatorColor[0] == '\0')
+    {
+        return;
+    }
+
 #define _MEWSTATS_MESSAGE_SIZE 256
 #define _MEWSTATS_ELEMENT_SIZE 64
 #define _MEWSTATS_ELEMENT_COUNT 4
@@ -551,10 +611,10 @@ static void Mewstats_PrintMlsStats(int client, int target)
         int number = i + 1 + offset;
 
         char szHitNumber[_MEWSTATS_ELEMENT_SIZE] = "";
-        FormatEx(szHitNumber, sizeof(szHitNumber), "%sx%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], number);
+        FormatEx(szHitNumber, sizeof(szHitNumber), "%sx%s%i", szBaseColor, szAccentColor, number);
 
         char szHitSpeed[_MEWSTATS_ELEMENT_SIZE] = "";
-        FormatEx(szHitSpeed, sizeof(szHitSpeed), "%s%i%s ->%s %i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsPreHitSpeed[target][i]), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_BASE], g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsHitSpeed[target][i]));
+        FormatEx(szHitSpeed, sizeof(szHitSpeed), "%s%i%s ->%s %i", szAccentColor, RoundToZero(g_fMlsPreHitSpeed[target][i]), szBaseColor, szAccentColor, RoundToZero(g_fMlsHitSpeed[target][i]));
 
         char szHitGain[_MEWSTATS_ELEMENT_SIZE] = "";
         if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE)
@@ -571,14 +631,14 @@ static void Mewstats_PrintMlsStats(int client, int target)
                     gain = RoundToZero(g_fMlsPreHitSpeed[target][i]) - RoundToZero(g_fMlsHitSpeed[target][i - 1]);
                 }
 
-                FormatEx(szHitGain, sizeof(szHitGain), "%s%s%i", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], gain >= 0 ? "+" : "", gain);
+                FormatEx(szHitGain, sizeof(szHitGain), "%s%s%i", szAccentColor, gain >= 0 ? "+" : "", gain);
             }
         }
 
         char szHitDeviation[_MEWSTATS_ELEMENT_SIZE] = "";
         if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
         {
-            FormatEx(szHitDeviation, sizeof(szHitDeviation), "%s%i°", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_ACCENT], RoundToZero(g_fMlsHitDeviation[target][i]));
+            FormatEx(szHitDeviation, sizeof(szHitDeviation), "%s%i°", szAccentColor, RoundToZero(g_fMlsHitDeviation[target][i]));
         }
 
         char szMessageElements[_MEWSTATS_ELEMENT_COUNT][_MEWSTATS_ELEMENT_SIZE];
@@ -606,7 +666,7 @@ static void Mewstats_PrintMlsStats(int client, int target)
         {
             if (j >= 1)
             {
-                Format(szMessage, sizeof(szMessage), "%s%s%s", szMessage, g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_MLS_SEPARATOR], MEWSTATS_CHAT_SEPARATOR_LINE);
+                Format(szMessage, sizeof(szMessage), "%s%s%s", szMessage, szSeparatorColor, MEWSTATS_CHAT_SEPARATOR_LINE);
             }
             Format(szMessage, sizeof(szMessage), "%s%s", szMessage, szMessageElements[j]);
         }
@@ -771,6 +831,20 @@ static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int
         return;
     }
 
+    char szSeparatorColor[MEWSTATS_THEME_COLOR_SIZE] = "";
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szSeparatorColor, sizeof(szSeparatorColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR]);
+    }
+    else
+    {
+        strcopy(szSeparatorColor, sizeof(szSeparatorColor), g_szCustomSeparatorColor[client]);
+    }
+    if (szSeparatorColor[0] == '\0')
+    {
+        return;
+    }
+
 #define _MEWSTATS_MESSAGE_SIZE 256
 #define _MEWSTATS_ELEMENT_SIZE 64
 #define _MEWSTATS_ELEMENT_COUNT 5
@@ -819,7 +893,7 @@ static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int
     {
         if (i >= 1)
         {
-            Format(szMessage, sizeof(szMessage), "%s%s%s", szMessage, g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR], g_szChatSeparatorValues[g_iChatSeparator[client]]);
+            Format(szMessage, sizeof(szMessage), "%s%s%s", szMessage, szSeparatorColor, g_szChatSeparatorValues[g_iChatSeparator[client]]);
         }
         Format(szMessage, sizeof(szMessage), "%s%s", szMessage, szMessageElements[i]);
     }
@@ -827,7 +901,7 @@ static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int
     {
         if (g_iPartnerPrefix[client] != MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_NONE)
         {
-            Format(szMessage, sizeof(szMessage), "%s%s %s", g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_SEPARATOR], g_szPartnerPrefixValues[g_iPartnerPrefix[client]], szMessage);
+            Format(szMessage, sizeof(szMessage), "%s%s %s", szSeparatorColor, g_szPartnerPrefixValues[g_iPartnerPrefix[client]], szMessage);
         }
     }
     if (szMessage[0] == '\0')
@@ -905,7 +979,14 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     float speed = GetVectorLength(velocity, false) + 0.0001;
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomBaseColor[client]);
+    }
     if (szBaseColor[0] == '\0')
     {
         return;
@@ -928,7 +1009,14 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     }
     else if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_FALSE)
     {
-        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+        if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+        {
+            strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+        }
+        else
+        {
+            strcopy(szAccentColor, sizeof(szAccentColor), g_szCustomAccentColor[client]);
+        }
     }
     if (szAccentColor[0] == '\0')
     {
@@ -983,15 +1071,18 @@ static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int 
     float angle = -1.0 * angles[0];
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
-    if (szBaseColor[0] == '\0')
-    {
-        return;
-    }
-
     char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
-    if (szAccentColor[0] == '\0')
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomBaseColor[client]);
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szCustomAccentColor[client]);
+    }
+    if (szBaseColor[0] == '\0' || szAccentColor[0] == '\0')
     {
         return;
     }
@@ -1019,7 +1110,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     {
         return;
     }
-    if (g_iThrowTime[client] != MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE)
+    if (g_iThrowTime[client] != MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT)
     {
         return;
     }
@@ -1050,7 +1141,14 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     float time = tick * GetTickInterval() + 0.0001;
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomBaseColor[client]);
+    }
     if (szBaseColor[0] == '\0')
     {
         return;
@@ -1066,7 +1164,14 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
     else if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_FALSE)
     {
-        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+        if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+        {
+            strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+        }
+        else
+        {
+            strcopy(szAccentColor, sizeof(szAccentColor), g_szCustomAccentColor[client]);
+        }
     }
     if (szAccentColor[0] == '\0')
     {
@@ -1137,35 +1242,21 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, c
     partnerDirection[1] = partnerPosition[1] - flashbangPosition[1];
     partnerDirection[2] = 0.0;
 
-    // float partnerVelocity[3];
-    // GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, partnerVelocity);
-    // partnerVelocity[2] = 0.0;
-
-    // float speed = GetVectorLength(partnerVelocity, false);
-    // if (speed <= 0.2)
-    // {
-    //     float flashbangPosition[3];
-    //     GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
-
-    //     float partnerPosition[3];
-    //     GetClientAbsOrigin(partner, partnerPosition);
-
-    //     partnerVelocity[0] = partnerPosition[0] - flashbangPosition[0];
-    //     partnerVelocity[1] = partnerPosition[1] - flashbangPosition[1];
-    // }
-
     float angle = Mewstats_RelativeDeviation(flashbangVelocity, partnerDirection);
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
-    if (szBaseColor[0] == '\0')
-    {
-        return;
-    }
-
     char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
-    if (szAccentColor[0] == '\0')
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_ACCENT]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomBaseColor[client]);
+        strcopy(szAccentColor, sizeof(szAccentColor), g_szCustomAccentColor[client]);
+    }
+    if (szBaseColor[0] == '\0' || szAccentColor[0] == '\0')
     {
         return;
     }
@@ -1217,7 +1308,14 @@ static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int
     }
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
-    strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szChatThemeColors[g_iChatTheme[client]][MEWSTATS_THEME_COLOR_INDEX_BASE]);
+    }
+    else
+    {
+        strcopy(szBaseColor, sizeof(szBaseColor), g_szCustomBaseColor[client]);
+    }
     if (szBaseColor[0] == '\0')
     {
         return;
@@ -1536,7 +1634,13 @@ static void MenuSelect_ValuePrecision(int client)
 
 static void MenuSelect_ChatTheme(int client)
 {
-    Mewstats_CycleCookie(client, g_ckChatTheme, g_iChatTheme, MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT);
+    int count = MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT;
+    if (!Mewstats_IsCustomThemeComplete(client))
+    {
+        count = MEWSTATS_THEME_COUNT;
+    }
+
+    Mewstats_CycleCookie(client, g_ckChatTheme, g_iChatTheme, count);
 }
 
 static void MenuSelect_ChatSeparator(int client)
@@ -1562,222 +1666,512 @@ static void Mewstats_CycleCookie(int client, Cookie cookie, int storage[MAXPLAYE
 
 static Action Command_All(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
-    {
-        return Plugin_Handled;
-    }
+    return Plugin_Continue;
 
-    int snapshot = Mewstats_GetSnapshot(client);
-    if (snapshot > 0)
-    {
-        // Saving Snapshot
-        g_iLastBitflags[client] = snapshot;
-        g_ckLastBitflags.SetInt(client, g_iLastBitflags[client]);
+    // if (!Mewstats_IsClientInGame(client))
+    // {
+    //     return Plugin_Handled;
+    // }
 
-        // Turning Things Off
-        g_iThrowSpeed[client] = MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
-        g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+    // int snapshot = Mewstats_GetSnapshot(client);
+    // if (snapshot > 0)
+    // {
+    //     // Saving Snapshot
+    //     g_iLastBitflags[client] = snapshot;
+    //     g_ckLastBitflags.SetInt(client, g_iLastBitflags[client]);
 
-        g_iThrowAngle[client] = MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
-        g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+    //     // Turning Things Off
+    //     g_iThrowSpeed[client] = MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
+    //     g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
 
-        g_iThrowTime[client] = MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
-        g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+    //     g_iThrowAngle[client] = MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
+    //     g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
 
-        g_iThrowDeviation[client] = MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
-        g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+    //     g_iThrowTime[client] = MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
+    //     g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
 
-        g_iThrowStatus[client] = MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
-        g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+    //     g_iThrowDeviation[client] = MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
+    //     g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
 
-        g_iSkyStats[client] = MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
-        g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+    //     g_iThrowStatus[client] = MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
+    //     g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
 
-        g_iMlsStats[client] = MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
-        g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
+    //     g_iSkyStats[client] = MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
+    //     g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
 
-        char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-        if (szMessage[0] != '\0')
-        {
-            Mewstats_SayText2(client, true, szMessage);
-        }
-    }
-    else
-    {
-        // Getting Snapshot
-        int bitflags = g_iLastBitflags[client];
-        if (bitflags == MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_UNKNOWN)
-        {
-            bitflags = 0;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT;
-            bitflags |= 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT;
-        }
+    //     g_iMlsStats[client] = MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
+    //     g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
 
-        // Turning Things On
-        g_iThrowSpeed[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE : MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
-        g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+    //     char szMessage[256] = "";
+    //     FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+    //     if (szMessage[0] != '\0')
+    //     {
+    //         Mewstats_SayText2(client, true, szMessage);
+    //     }
+    // }
+    // else
+    // {
+    //     // Getting Snapshot
+    //     int bitflags = g_iLastBitflags[client];
+    //     if (bitflags == MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_UNKNOWN)
+    //     {
+    //         bitflags = 0;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT;
+    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT;
+    //     }
 
-        g_iThrowAngle[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE : MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
-        g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+    //     // Turning Things On
+    //     g_iThrowSpeed[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE : MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
+    //     g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
 
-        g_iThrowTime[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE : MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
-        g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+    //     g_iThrowAngle[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE : MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
+    //     g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
 
-        g_iThrowDeviation[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE : MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
-        g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+    //     g_iThrowTime[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE : MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
+    //     g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
 
-        g_iThrowStatus[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE : MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
-        g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+    //     g_iThrowDeviation[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE : MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
+    //     g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
 
-        g_iSkyStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE : MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
-        g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+    //     g_iThrowStatus[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE : MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
+    //     g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
 
-        g_iMlsStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE : MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
-        g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
+    //     g_iSkyStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE : MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
+    //     g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
 
-        char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-        if (szMessage[0] != '\0')
-        {
-            Mewstats_SayText2(client, true, szMessage);
-        }
-    }
+    //     g_iMlsStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE : MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
+    //     g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
 
-    return Plugin_Handled;
+    //     char szMessage[256] = "";
+    //     FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+    //     if (szMessage[0] != '\0')
+    //     {
+    //         Mewstats_SayText2(client, true, szMessage);
+    //     }
+    // }
+
+    // return Plugin_Handled;
 }
 
-static Action Command_Snapshot(int client, int argc)
+static Action Command_Import(int client, int argc)
+{
+    return Plugin_Continue;
+
+    // if (!Mewstats_IsClientInGame(client))
+    // {
+    //     return Plugin_Handled;
+    // }
+
+    // return Plugin_Handled;
+}
+
+static Action Command_Export(int client, int argc)
+{
+    return Plugin_Continue;
+
+    // if (!Mewstats_IsClientInGame(client))
+    // {
+    //     return Plugin_Handled;
+    // }
+
+    // return Plugin_Handled;
+}
+
+static Action Command_Config(int client, int argc)
 {
     if (!Mewstats_IsClientInGame(client))
     {
         return Plugin_Handled;
     }
 
-    int snapshot = Mewstats_GetSnapshot(client);
-    int bitflags = g_iLastBitflags[client];
+    Menu_Config(client, 0);
+    return Plugin_Handled;
+}
+
+static void Menu_Config(int client, int position)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return;
+    }
+
+    Menu menu = new Menu(MenuHandler_Config);
+    menu.SetTitle("Boost Stats\n ");
+
+    char szItem[MEWSTATS_MENU_ITEM_SIZE];
+
+    menu.AddItem(MEWSTATS_MENU_SELECT_IMPORT_SETTINGS, MEWSTATS_MENU_ITEM_IMPORT_SETTINGS);
+    menu.AddItem(MEWSTATS_MENU_SELECT_EXPORT_SETTINGS, MEWSTATS_MENU_ITEM_EXPORT_SETTINGS);
+    menu.AddItem(MEWSTATS_MENU_SELECT_SAVE_SETTINGS, MEWSTATS_MENU_ITEM_SAVE_SETTINGS);
+    menu.AddItem(MEWSTATS_MENU_SELECT_BACKUP_SETTINGS, MEWSTATS_MENU_ITEM_BACKUP_SETSTINGS);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        menu.AddItem("", "", ITEMDRAW_SPACER);
+    }
+
+    char szColor[MEWSTATS_MENU_ITEM_SIZE];
+
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_BASE_COLOR)
+    {
+        Mewstats_ThemeColorMenuItem(szColor, sizeof(szColor), g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE);
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_BASE_COLOR_FMT, szColor);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_BASE_COLOR_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_BASE_COLOR, szItem);
+
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_ACCENT_COLOR)
+    {
+        Mewstats_ThemeColorMenuItem(szColor, sizeof(szColor), g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE);
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_ACCENT_COLOR_FMT, szColor);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_ACCENT_COLOR_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_ACCENT_COLOR, szItem);
+
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_SEPARATOR_COLOR)
+    {
+        Mewstats_ThemeColorMenuItem(szColor, sizeof(szColor), g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE);
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_SEPARATOR_COLOR_FMT, szColor);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_SEPARATOR_COLOR_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_SEPARATOR_COLOR, szItem);
+
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_MLS_BASE_COLOR)
+    {
+        Mewstats_ThemeColorMenuItem(szColor, sizeof(szColor), g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE);
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_BASE_COLOR_FMT, szColor);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_BASE_COLOR_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_MLS_BASE_COLOR, szItem);
+
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_MLS_ACCENT_COLOR)
+    {
+        Mewstats_ThemeColorMenuItem(szColor, sizeof(szColor), g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE);
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_ACCENT_COLOR_FMT, szColor);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_ACCENT_COLOR_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_MLS_ACCENT_COLOR, szItem);
+
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR)
+    {
+        Mewstats_ThemeColorMenuItem(szColor, sizeof(szColor), g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE);
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_SEPARATOR_COLOR_FMT, szColor);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_MLS_SEPARATOR_COLOR_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_MLS_SEPARATOR_COLOR, szItem);
+
+    menu.AddItem(MEWSTATS_MENU_SELECT_CANCEL_CHAT_INPUT, MEWSTATS_MENU_ITEM_CANCEL_CHAT_INPUT);
+
+    menu.ExitBackButton = false;
+    menu.ExitButton = true;
+
+    menu.DisplayAt(client, position, MENU_TIME_FOREVER);
+}
+
+static void MenuHandler_Config(Menu menu, MenuAction action, int client, int index)
+{
+    if (action == MenuAction_End)
+    {
+        delete menu;
+        return;
+    }
+    if (action != MenuAction_Select)
+    {
+        return;
+    }
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return;
+    }
+
+    char szInfo[MEWSTATS_MENU_SELECT_SIZE];
+    if (!menu.GetItem(index, szInfo, sizeof(szInfo)))
+    {
+        return;
+    }
+
+    if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_BASE_COLOR))
+    {
+        MenuSelect_BaseColor(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_ACCENT_COLOR))
+    {
+        MenuSelect_AccentColor(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_SEPARATOR_COLOR))
+    {
+        MenuSelect_SeparatorColor(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_MLS_BASE_COLOR))
+    {
+        MenuSelect_MlsBaseColor(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_MLS_ACCENT_COLOR))
+    {
+        MenuSelect_MlsAccentColor(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_MLS_SEPARATOR_COLOR))
+    {
+        MenuSelect_MlsSeparatorColor(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_CANCEL_CHAT_INPUT))
+    {
+        MenuSelect_CancelChatInput(client);
+    }
+
+    g_iConfigMenuPosition[client] = GetMenuSelectionPosition();
+    Menu_Config(client, g_iConfigMenuPosition[client]);
+}
+
+static void MenuSelect_BaseColor(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_BASE_COLOR)
+    {
+        return;
+    }
 
     char szMessage[256] = "";
-    FormatEx(szMessage, sizeof(szMessage), "%s%sYour current & stored snapshots [%s%i%s;%s %i%s]", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, snapshot, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, bitflags, MEWSTATS_CHAT_COLOR_WHITE);
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a custom theme%s base color%s #RRGGBB in the chat; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_BASE_COLOR;
+}
+
+static void MenuSelect_AccentColor(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_ACCENT_COLOR)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a custom theme%s accent color%s #RRGGBB in the chat; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_ACCENT_COLOR;
+}
+
+static void MenuSelect_SeparatorColor(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_SEPARATOR_COLOR)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a custom theme%s separator color%s #RRGGBB in the chat; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_SEPARATOR_COLOR;
+}
+
+static void MenuSelect_MlsBaseColor(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_MLS_BASE_COLOR)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a custom theme%s MLS base color%s #RRGGBB in the chat; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_MLS_BASE_COLOR;
+}
+
+static void MenuSelect_MlsAccentColor(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_MLS_ACCENT_COLOR)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a custom theme%s MLS accent color%s #RRGGBB in the chat; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_MLS_ACCENT_COLOR;
+}
+
+static void MenuSelect_MlsSeparatorColor(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a custom theme%s MLS separator color%s #RRGGBB in the chat; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR;
+}
+
+static void MenuSelect_CancelChatInput(int client)
+{
+    if (g_iAwaitInput[client] < _MEWSTATS_AWAIT_MIN || g_iAwaitInput[client] > _MEWSTATS_AWAIT_MAX)
+    {
+        return;
+    }
+
+    g_iAwaitInput[client] = 0;
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s canceled%s the color input", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
+}
+
+static Action Listener_AwaitInput(int client, const char[] command, int argc)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Continue;
+    }
+    if (g_iAwaitInput[client] < _MEWSTATS_AWAIT_MIN || g_iAwaitInput[client] > _MEWSTATS_AWAIT_MAX)
+    {
+        return Plugin_Continue;
+    }
+
+    char szText[_MEWSTATS_AWAIT_SIZE] = "";
+    GetCmdArgString(szText, sizeof(szText));
+
+    TrimString(szText);
+    StripQuotes(szText);
+
+    if (szText[0] == '/' || szText[0] == '!')
+    {
+        return Plugin_Continue;
+    }
+
+    if (StrContains(szText, "cancel", false) != -1)
+    {
+        g_iAwaitInput[client] = 0;
+
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s canceled%s the color input", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+
+        Menu_Config(client, g_iConfigMenuPosition[client]);
+        return Plugin_Handled;
+    }
+
+    char szColor[MEWSTATS_THEME_COLOR_SIZE];
+    if (!Mewstats_ParseThemeColor(szColor, sizeof(szColor), szText, sizeof(szText)))
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYour color input is%s invalid%s; try again or type%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_DARK_RED, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+
+        return Plugin_Handled;
+    }
+
+    int await = g_iAwaitInput[client];
+    g_iAwaitInput[client] = 0;
+
+    Mewstats_RouteAwait(client, await, szColor, sizeof(szColor));
+    return Plugin_Handled;
+}
+
+static void Mewstats_RouteAwait(int client, int await, char[] color, int size)
+{
+    char szItem[MEWSTATS_MENU_ITEM_SIZE];
+    Mewstats_ThemeColorMenuItem(szItem, sizeof(szItem), color, size);
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYou have choosen %s%s%s as your color", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, color, szItem, MEWSTATS_CHAT_COLOR_WHITE);
     if (szMessage[0] != '\0')
     {
         Mewstats_SayText2(client, true, szMessage);
     }
 
-    return Plugin_Handled;
-}
-
-// static Action Command_MlsGain(int client, int argc)
-// {
-//     if (!Mewstats_IsClientInGame(client))
-//     {
-//         return Plugin_Handled;
-//     }
-
-//     if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE)
-//     {
-//         // Turning Off
-//         g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE;
-//         g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
-
-//         char szMessage[256] = "";
-//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-//         if (szMessage[0] != '\0')
-//         {
-//             Mewstats_SayText2(client, true, szMessage);
-//         }
-//     }
-//     else if (g_iMlsGain[client] == MEWSTATS_COOKIE_VALUE_MLS_GAIN_FALSE)
-//     {
-//         // Turning On
-//         g_iMlsGain[client] = MEWSTATS_COOKIE_VALUE_MLS_GAIN_TRUE;
-//         g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
-
-//         char szMessage[256] = "";
-//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s gain", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-//         if (szMessage[0] != '\0')
-//         {
-//             Mewstats_SayText2(client, true, szMessage);
-//         }
-//     }
-
-//     return Plugin_Handled;
-// }
-
-// static Action Command_MlsDeviation(int client, int argc)
-// {
-//     if (!Mewstats_IsClientInGame(client))
-//     {
-//         return Plugin_Handled;
-//     }
-
-//     if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE)
-//     {
-//         // Turning Off
-//         g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE;
-//         g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
-
-//         char szMessage[256] = "";
-//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-//         if (szMessage[0] != '\0')
-//         {
-//             Mewstats_SayText2(client, true, szMessage);
-//         }
-//     }
-//     else if (g_iMlsDeviation[client] == MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_FALSE)
-//     {
-//         // Turning On
-//         g_iMlsDeviation[client] = MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_TRUE;
-//         g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
-
-//         char szMessage[256] = "";
-//         FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s deviation", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-//         if (szMessage[0] != '\0')
-//         {
-//             Mewstats_SayText2(client, true, szMessage);
-//         }
-//     }
-
-//     return Plugin_Handled;
-// }
-
-static int Mewstats_GetSnapshot(int client)
-{
-    int bitflags = 0;
-    if (g_iThrowSpeed[client] == MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE)
+    if (await == _MEWSTATS_AWAIT_BASE_COLOR)
     {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT;
+        strcopy(g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
+        g_ckCustomBaseColor.Set(client, g_szCustomBaseColor[client]);
     }
-    if (g_iThrowAngle[client] == MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE)
+    else if (await == _MEWSTATS_AWAIT_ACCENT_COLOR)
     {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT;
+        strcopy(g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
+        g_ckCustomAccentColor.Set(client, g_szCustomAccentColor[client]);
     }
-    if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE)
+    else if (await == _MEWSTATS_AWAIT_SEPARATOR_COLOR)
     {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT;
+        strcopy(g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
+        g_ckCustomSeparatorColor.Set(client, g_szCustomSeparatorColor[client]);
     }
-    if (g_iThrowDeviation[client] == MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE)
+    else if (await == _MEWSTATS_AWAIT_MLS_BASE_COLOR)
     {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT;
+        strcopy(g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
+        g_ckCustomMlsBaseColor.Set(client, g_szCustomMlsBaseColor[client]);
     }
-    if (g_iThrowStatus[client] == MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE)
+    else if (await == _MEWSTATS_AWAIT_MLS_ACCENT_COLOR)
     {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT;
+        strcopy(g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
+        g_ckCustomMlsAccentColor.Set(client, g_szCustomMlsAccentColor[client]);
     }
-    if (g_iSkyStats[client] == MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE)
+    else if (await == _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR)
     {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT;
+        strcopy(g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
+        g_ckCustomMlsSeparatorColor.Set(client, g_szCustomMlsSeparatorColor[client]);
     }
-    if (g_iMlsStats[client] == MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE)
-    {
-        bitflags |= 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT;
-    }
-    return bitflags;
+
+    Menu_Config(client, g_iConfigMenuPosition[client]);
 }
 
 static void Mewstats_InitStateVars(int client)
@@ -1799,9 +2193,53 @@ static void Mewstats_InitStateVars(int client)
     g_iChatTheme[client] = g_ckChatTheme.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_THEME_DEFAULT);
     g_iChatSeparator[client] = g_ckChatSeparator.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_DEFAULT);
     g_iChatSound[client] = g_ckChatSound.GetInt(client, MEWSTATS_COOKIE_VALUE_CHAT_SOUND_DEFAULT);
-    g_iLastBitflags[client] = g_ckLastBitflags.GetInt(client, MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_DEFAULT);
     g_iMlsGain[client] = g_ckMlsGain.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_GAIN_DEFAULT);
     g_iMlsDeviation[client] = g_ckMlsDeviation.GetInt(client, MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_DEFAULT);
+
+    g_ckCustomBaseColor.Get(client, g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE);
+    g_ckCustomAccentColor.Get(client, g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE);
+    g_ckCustomSeparatorColor.Get(client, g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE);
+    g_ckCustomMlsBaseColor.Get(client, g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE);
+    g_ckCustomMlsAccentColor.Get(client, g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE);
+    g_ckCustomMlsSeparatorColor.Get(client, g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE);
+
+    bool flag = false;
+    if (!Mewstats_IsThemeColorValid(g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE))
+    {
+        g_szCustomBaseColor[client][0] = '\0';
+        flag = true;
+    }
+    if (!Mewstats_IsThemeColorValid(g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE))
+    {
+        g_szCustomAccentColor[client][0] = '\0';
+        flag = true;
+    }
+    if (!Mewstats_IsThemeColorValid(g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE))
+    {
+        g_szCustomSeparatorColor[client][0] = '\0';
+        flag = true;
+    }
+    if (!Mewstats_IsThemeColorValid(g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE))
+    {
+        g_szCustomMlsBaseColor[client][0] = '\0';
+        flag = true;
+    }
+    if (!Mewstats_IsThemeColorValid(g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE))
+    {
+        g_szCustomMlsAccentColor[client][0] = '\0';
+        flag = true;
+    }
+    if (!Mewstats_IsThemeColorValid(g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE))
+    {
+        g_szCustomMlsSeparatorColor[client][0] = '\0';
+        flag = true;
+    }
+
+    if (flag && g_iChatTheme[client] == MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
+    {
+        g_iChatTheme[client] = MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD;
+        g_ckChatTheme.SetInt(client, g_iChatTheme[client]);
+    }
 }
 
 static void Mewstats_CreateGlobals()
@@ -1816,7 +2254,8 @@ static void Mewstats_CreateGlobals()
 
     // Throw Time
     g_szThrowTimeModes[MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
-    g_szThrowTimeModes[MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
+    g_szThrowTimeModes[MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT] = MEWSTATS_MENU_ITEM_INSTANT;
+    g_szThrowTimeModes[MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED] = MEWSTATS_MENU_ITEM_DELAYED;
 
     // Throw Deviation
     g_szThrowDeviationModes[MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
@@ -1884,6 +2323,7 @@ static void Mewstats_CreateGlobals()
     g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_LILAC] = MEWSTATS_MENU_ITEM_LILAC;
     g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_ICE] = MEWSTATS_MENU_ITEM_ICE;
     g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_MINT] = MEWSTATS_MENU_ITEM_MINT;
+    g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM] = MEWSTATS_MENU_ITEM_CUSTOM;
 
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_BASE] = MEWSTATS_THEME_STANDARD_COLOR_BASE;
     g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD][MEWSTATS_THEME_COLOR_INDEX_ACCENT] = MEWSTATS_THEME_STANDARD_COLOR_ACCENT;
@@ -1944,21 +2384,121 @@ static void Mewstats_CreateCookies()
     g_ckChatTheme = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_THEME, MEWSTATS_COOKIE_DESCRIPTION_CHAT_THEME, CookieAccess_Protected);
     g_ckChatSeparator = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SEPARATOR, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SEPARATOR, CookieAccess_Protected);
     g_ckChatSound = RegClientCookie(MEWSTATS_COOKIE_NAME_CHAT_SOUND, MEWSTATS_COOKIE_DESCRIPTION_CHAT_SOUND, CookieAccess_Protected);
-    g_ckLastBitflags = RegClientCookie(MEWSTATS_COOKIE_NAME_LAST_BITFLAGS, MEWSTATS_COOKIE_DESCRIPTION_LAST_BITFLAGS, CookieAccess_Protected);
     g_ckMlsGain = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_GAIN, MEWSTATS_COOKIE_DESCRIPTION_MLS_GAIN, CookieAccess_Protected);
     g_ckMlsDeviation = RegClientCookie(MEWSTATS_COOKIE_NAME_MLS_DEVIATION, MEWSTATS_COOKIE_DESCRIPTION_MLS_DEVIATION, CookieAccess_Protected);
+    g_ckCustomBaseColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_BASE_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_BASE_COLOR, CookieAccess_Protected);
+    g_ckCustomAccentColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_ACCENT_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_ACCENT_COLOR, CookieAccess_Protected);
+    g_ckCustomSeparatorColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_SEPARATOR_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_SEPARATOR_COLOR, CookieAccess_Protected);
+    g_ckCustomMlsBaseColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_MLS_BASE_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_MLS_BASE_COLOR, CookieAccess_Protected);
+    g_ckCustomMlsAccentColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_MLS_ACCENT_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_MLS_ACCENT_COLOR, CookieAccess_Protected);
+    g_ckCustomMlsSeparatorColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_MLS_SEPARATOR_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_MLS_SEPARATOR_COLOR, CookieAccess_Protected);
 }
 
 static void Mewstats_CreateCommands()
 {
     RegConsoleCmd("sm_bs", Command_Stats);
     RegConsoleCmd("sm_bsall", Command_All);
-    RegConsoleCmd("sm_bssnap", Command_Snapshot);
-    // RegConsoleCmd("sm_bsmlsgain", Command_MlsGain);
-    // RegConsoleCmd("sm_bsmlsdev", Command_MlsDeviation);
+    RegConsoleCmd("sm_bsimport", Command_Import);
+    RegConsoleCmd("sm_bsexport", Command_Export);
+    RegConsoleCmd("sm_bspref", Command_Config);
+    RegConsoleCmd("sm_bspreferences", Command_Config);
+    RegConsoleCmd("sm_bscfg", Command_Config);
+    RegConsoleCmd("sm_bsconfig", Command_Config);
 }
 
 static void Mewstats_HookEvents()
 {
     HookEvent(MEWSTATS_EVENT_PLAYER_JUMP, Event_PlayerJump, EventHookMode_Post);
+}
+
+static void Mewstats_HookCommands()
+{
+    AddCommandListener(Listener_AwaitInput, "say");
+    AddCommandListener(Listener_AwaitInput, "say_team");
+}
+
+static bool Mewstats_IsCustomThemeComplete(int client)
+{
+    return Mewstats_IsThemeColorValid(g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE)
+        && Mewstats_IsThemeColorValid(g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE)
+        && Mewstats_IsThemeColorValid(g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE)
+        && Mewstats_IsThemeColorValid(g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE)
+        && Mewstats_IsThemeColorValid(g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE)
+        && Mewstats_IsThemeColorValid(g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE);
+}
+
+static bool Mewstats_IsThemeColorValid(char[] buff, int size)
+{
+    if (buff[0] == '\0' || buff[0] != '\x07')
+    {
+        return false;
+    }
+
+    for (int i = 1; i < 7; ++i)
+    {
+        if (i >= size || buff[i] == '\0')
+        {
+            return false;
+        }
+
+        char c = buff[i];
+        if ((c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F'))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static void Mewstats_ThemeColorMenuItem(char[] buff, int size, char[] color, int csize)
+{
+    if (!Mewstats_IsThemeColorValid(color, csize))
+    {
+        strcopy(buff, size, MEWSTATS_MENU_ITEM_NONE);
+        return;
+    }
+
+    buff[0] = '#';
+    int i = 1;
+    for (; i < 7 && i < size; ++i)
+    {
+        buff[i] = CharToUpper(color[i]);
+    }
+    buff[i] = '\0';
+}
+
+static bool Mewstats_ParseThemeColor(char[] buff, int size, char[] text, int tsize)
+{
+    int start = 0;
+    for (; start < tsize; ++start)
+    {
+        char c = text[start];
+        if (c == '\0' || c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F')
+        {
+            break;
+        }
+    }
+
+    if (tsize - start - 1 < 6)
+    {
+        return false;
+    }
+
+    buff[0] = '\x07';
+    int i = 1;
+    for (; i < 7 && i < size && start + i - 1 < tsize; ++i)
+    {
+        char c = text[start + i - 1];
+        if ((c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F'))
+        {
+            buff[0] = '\0';
+            return false;
+        }
+
+        buff[i] = CharToUpper(c);
+   }
+   buff[i] = '\0';
+
+   return true;
 }

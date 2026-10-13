@@ -22,6 +22,18 @@
 
 #include <clients>
 #include <float>
+#include <string>
+
+stock void Mewstats_XorBytes(char[] buff, int size)
+{
+    static const char szKey[] = "++kty00trikz";
+    static const int iKeyLen = sizeof(szKey) - 1;
+
+    for (int i = 0; i < size; ++i)
+    {
+        buff[i] ^= szKey[i % iKeyLen];
+    }
+}
 
 stock bool Mewstats_IsFlag(int val, int flag)
 {
