@@ -2238,7 +2238,6 @@ static void Mewstats_InitStateVars(int client)
     if (flag && g_iChatTheme[client] == MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
     {
         g_iChatTheme[client] = MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD;
-        g_ckChatTheme.SetInt(client, g_iChatTheme[client]);
     }
 }
 
