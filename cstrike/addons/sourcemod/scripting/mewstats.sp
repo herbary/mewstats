@@ -2429,7 +2429,7 @@ static bool Mewstats_IsCustomThemeComplete(int client)
 
 static bool Mewstats_IsThemeColorValid(char[] buff, int size)
 {
-    if (buff[0] == '\0' || buff[0] != '\x07')
+    if (buff[0] != '\x07')
     {
         return false;
     }
