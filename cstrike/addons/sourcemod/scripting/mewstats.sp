@@ -2745,7 +2745,6 @@ static bool Mewstats_ImportSettingsRaw(int client, char[] buff, int size)
     g_ckSkyPrecision.SetInt(client, g_iSkyPrecision[client]);
 
     Mewstats_ImportThemeRaw(client, buff[i], size - i);
-
     return true;
 }
 
@@ -2793,7 +2792,7 @@ static int Mewstats_ExportSettingsRaw(int client, char[] buff, int size)
     data |= (g_iSkyStats[client] & MEWSTATS_COOKIE_VALUE_SKY_STATS_MASK) << MEWSTATS_COOKIE_VALUE_SKY_STATS_SHIFT;                      // 1 bit    [#08]
     // -- #2
     data |= (g_iMlsStats[client] & MEWSTATS_COOKIE_VALUE_MLS_STATS_MASK) << MEWSTATS_COOKIE_VALUE_MLS_STATS_SHIFT;                      // 1 bit    [#09]
-    data |= (g_iShortNames[client] & MEWSTATS_COOKIE_VALUE_SHORT_NAMES_MASK) << MEWSTATS_COOKIE_VALUE_MLS_STATS_SHIFT;                    // 1 bit    [#10]
+    data |= (g_iShortNames[client] & MEWSTATS_COOKIE_VALUE_SHORT_NAMES_MASK) << MEWSTATS_COOKIE_VALUE_SHORT_NAMES_SHIFT;                // 1 bit    [#10]
     data |= (g_iCrouchName[client] & MEWSTATS_COOKIE_VALUE_CROUCH_NAME_MASK) << MEWSTATS_COOKIE_VALUE_CROUCH_NAME_SHIFT;                // 1 bit    [#11]
     data |= (g_iColorValues[client] & MEWSTATS_COOKIE_VALUE_COLOR_VALUES_MASK) << MEWSTATS_COOKIE_VALUE_COLOR_VALUES_SHIFT;             // 1 bit    [#12]
     data |= (g_iValuePrecision[client] & MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_MASK) << MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_SHIFT;    // 1 bit    [#13]
