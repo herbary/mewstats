@@ -37,11 +37,18 @@
 #include <mewstats/theme>
 #include <mewstats/color>
 
+#include <base64>
+
 #pragma newdecls required
 #pragma semicolon 1
 
 #define _MEWSTATS_TICK_UNKNOWN -1
 #define _MEWSTATS_MLS_STORE_LIMIT 12
+
+#define _MEWSTATS_SETTING_TAG 's'
+#define _MEWSTATS_THEME_TAG 't'
+#define _MEWSTATS_SETTING_RAW_LEN 23    // 1 byte of 's' tag + 3 bytes of settings + 1 byte of 't' tag + 18 bytes of colors
+#define _MEWSTATS_THEME_RAW_LEN 19      // 1 byte of 't' tag + 18 bytes of colors
 
 public Plugin myinfo = {
     name = MEWSTATS_NAME,
@@ -78,6 +85,8 @@ Cookie g_ckCustomSeparatorColor;
 Cookie g_ckCustomMlsBaseColor;
 Cookie g_ckCustomMlsAccentColor;
 Cookie g_ckCustomMlsSeparatorColor;
+Cookie g_ckSettingsBackup;
+Cookie g_ckStatsBackup;
 
 int g_iThrowSpeed[MAXPLAYERS + 1];
 int g_iThrowAngle[MAXPLAYERS + 1];
@@ -104,6 +113,8 @@ char g_szCustomSeparatorColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
 char g_szCustomMlsBaseColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
 char g_szCustomMlsAccentColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
 char g_szCustomMlsSeparatorColor[MAXPLAYERS + 1][MEWSTATS_THEME_COLOR_SIZE];
+char g_szSettingsBackup[MAXPLAYERS + 1][MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE];
+int g_iStatsBackup[MAXPLAYERS + 1];
 
 char g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szThrowAngleModes[MEWSTATS_COOKIE_VALUE_THROW_ANGLE_COUNT][MEWSTATS_MENU_ITEM_SIZE];
@@ -144,8 +155,12 @@ float g_fMlsHitDeviation[MAXPLAYERS + 1][_MEWSTATS_MLS_STORE_LIMIT];
 #define _MEWSTATS_AWAIT_MLS_BASE_COLOR 4
 #define _MEWSTATS_AWAIT_MLS_ACCENT_COLOR 5
 #define _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR 6
+#define _MEWSTATS_AWAIT_IMPORT_SETTINGS 7
+#define _MEWSTATS_AWAIT_IMPORT_THEME 8
+#define _MEWSTATS_AWAIT_MIN_COLOR _MEWSTATS_AWAIT_BASE_COLOR
+#define _MEWSTATS_AWAIT_MAX_COLOR _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR
 #define _MEWSTATS_AWAIT_MIN _MEWSTATS_AWAIT_BASE_COLOR
-#define _MEWSTATS_AWAIT_MAX _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR
+#define _MEWSTATS_AWAIT_MAX _MEWSTATS_AWAIT_IMPORT_THEME
 #define _MEWSTATS_AWAIT_SIZE 256
 
 int g_iAwaitInput[MAXPLAYERS + 1];
@@ -1805,15 +1820,29 @@ static void Menu_Config(int client, int position)
 
     char szItem[MEWSTATS_MENU_ITEM_SIZE];
 
-    menu.AddItem(MEWSTATS_MENU_SELECT_IMPORT_SETTINGS, MEWSTATS_MENU_ITEM_IMPORT_SETTINGS);
-    menu.AddItem(MEWSTATS_MENU_SELECT_EXPORT_SETTINGS, MEWSTATS_MENU_ITEM_EXPORT_SETTINGS);
-    menu.AddItem(MEWSTATS_MENU_SELECT_SAVE_SETTINGS, MEWSTATS_MENU_ITEM_SAVE_SETTINGS);
-    menu.AddItem(MEWSTATS_MENU_SELECT_BACKUP_SETTINGS, MEWSTATS_MENU_ITEM_BACKUP_SETSTINGS);
-
-    for (int i = 0; i < 3; ++i)
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_IMPORT_SETTINGS)
     {
-        menu.AddItem("", "", ITEMDRAW_SPACER);
+        strcopy(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_IMPORT_SETTINGS);
     }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_AWAIT_IMPORT_SETTINGS_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_IMPORT_SETTINGS, szItem);
+    menu.AddItem(MEWSTATS_MENU_SELECT_EXPORT_SETTINGS, MEWSTATS_MENU_ITEM_EXPORT_SETTINGS);
+    if (g_iAwaitInput[client] != _MEWSTATS_AWAIT_IMPORT_THEME)
+    {
+        strcopy(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_IMPORT_THEME);
+    }
+    else
+    {
+        FormatEx(szItem, sizeof(szItem), MEWSTATS_MENU_ITEM_AWAIT_IMPORT_THEME_FMT, MEWSTATS_MENU_ITEM_AWAITING);
+    }
+    menu.AddItem(MEWSTATS_MENU_SELECT_IMPORT_THEME, szItem);
+    menu.AddItem(MEWSTATS_MENU_SELECT_EXPORT_THEME, MEWSTATS_MENU_ITEM_EXPORT_THEME);
+    menu.AddItem(MEWSTATS_MENU_SELECT_SAVE_SETTINGS, MEWSTATS_MENU_ITEM_SAVE_SETTINGS);
+    menu.AddItem(MEWSTATS_MENU_SELECT_BACKUP_SETTINGS, MEWSTATS_MENU_ITEM_BACKUP_SETTINGS);
+    menu.AddItem(MEWSTATS_MENU_SELECT_CANCEL_CHAT_INPUT, MEWSTATS_MENU_ITEM_CANCEL_CHAT_INPUT);
 
     char szColor[MEWSTATS_MENU_ITEM_SIZE];
 
@@ -1913,7 +1942,31 @@ static void MenuHandler_Config(Menu menu, MenuAction action, int client, int ind
         return;
     }
 
-    if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_BASE_COLOR))
+    if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_IMPORT_SETTINGS))
+    {
+        MenuSelect_ImportSettings(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_EXPORT_SETTINGS))
+    {
+        MenuSelect_ExportSettings(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_IMPORT_THEME))
+    {
+        MenuSelect_ImportTheme(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_EXPORT_THEME))
+    {
+        MenuSelect_ExportTheme(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_SAVE_SETTINGS))
+    {
+        MenuSelect_SaveSettings(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_BACKUP_SETTINGS))
+    {
+        MenuSelect_BackupSettings(client);
+    }
+    else if (StrEqual(szInfo, MEWSTATS_MENU_SELECT_BASE_COLOR))
     {
         MenuSelect_BaseColor(client);
     }
@@ -1944,6 +1997,151 @@ static void MenuHandler_Config(Menu menu, MenuAction action, int client, int ind
 
     g_iConfigMenuPosition[client] = GetMenuSelectionPosition();
     Menu_Config(client, g_iConfigMenuPosition[client]);
+}
+
+static void MenuSelect_ImportSettings(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_IMPORT_SETTINGS)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a settings%s code%s in the chat to import; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_IMPORT_SETTINGS;
+}
+
+static void MenuSelect_ExportSettings(int client)
+{
+    char code[MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE] = "";
+    Mewstats_ExportSettings(client, code, sizeof(code));
+
+    if (code[0] == '\0')
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sWe could not generate your settings%s code%s; something went wrong", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%s%s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, code);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
+}
+
+static void MenuSelect_ImportTheme(int client)
+{
+    if (g_iAwaitInput[client] == _MEWSTATS_AWAIT_IMPORT_THEME)
+    {
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sType a theme%s code%s in the chat to import; or%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+    if (szMessage[0] == '\0')
+    {
+        return;
+    }
+
+    Mewstats_SayText2(client, true, szMessage);
+    g_iAwaitInput[client] = _MEWSTATS_AWAIT_IMPORT_THEME;
+}
+
+static void MenuSelect_ExportTheme(int client)
+{
+    char code[MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE] = "";
+    Mewstats_ExportTheme(client, code, sizeof(code));
+
+    if (code[0] == '\0')
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sWe could not generate your theme%s code%s; your theme may be incomplete", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%s%s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, code);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
+}
+
+static void MenuSelect_SaveSettings(int client)
+{
+    char code[MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE] = "";
+    Mewstats_ExportSettings(client, code, sizeof(code));
+
+    if (code[0] == '\0')
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sWe could not save your settings; something went wrong", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+        return;
+    }
+
+    g_ckSettingsBackup.Set(client, code);
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYour settings saved under%s %s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, code);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
+}
+
+static void MenuSelect_BackupSettings(int client)
+{
+    char code[MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE] = "";
+    g_ckSettingsBackup.Get(client, code, sizeof(code));
+
+    if (code[0] == '\0')
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have not saved your settings yet", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+        return;
+    }
+
+    if (!Mewstats_ImportSettings(client, code))
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sWe could not restore your settings; your backup may be corrupted", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+        return;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYour settings restored from%s %s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, code);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
 }
 
 static void MenuSelect_BaseColor(int client)
@@ -2064,7 +2262,7 @@ static void MenuSelect_CancelChatInput(int client)
     g_iAwaitInput[client] = 0;
 
     char szMessage[256] = "";
-    FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s canceled%s the color input", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s canceled%s the chat input", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
     if (szMessage[0] != '\0')
     {
         Mewstats_SayText2(client, true, szMessage);
@@ -2098,7 +2296,7 @@ static Action Listener_AwaitInput(int client, const char[] command, int argc)
         g_iAwaitInput[client] = 0;
 
         char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s canceled%s the color input", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s canceled%s the chat input", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
         if (szMessage[0] != '\0')
         {
             Mewstats_SayText2(client, true, szMessage);
@@ -2108,70 +2306,115 @@ static Action Listener_AwaitInput(int client, const char[] command, int argc)
         return Plugin_Handled;
     }
 
-    char szColor[MEWSTATS_THEME_COLOR_SIZE];
-    if (!Mewstats_ParseThemeColor(szColor, sizeof(szColor), szText, sizeof(szText)))
+    g_iAwaitInput[client] = Mewstats_RouteAwait(client, g_iAwaitInput[client], szText, sizeof(szText));
+    Menu_Config(client, g_iConfigMenuPosition[client]);
+
+    return Plugin_Handled;
+}
+
+static int Mewstats_RouteAwait(int client, int await, char[] text, int size)
+{
+    if (await >= _MEWSTATS_AWAIT_MIN_COLOR && await <= _MEWSTATS_AWAIT_MAX_COLOR)
     {
+        char szColor[MEWSTATS_THEME_COLOR_SIZE];
+        if (!Mewstats_ParseThemeColor(szColor, sizeof(szColor), text, size))
+        {
+            char szMessage[256] = "";
+            FormatEx(szMessage, sizeof(szMessage), "%s%sYour color input is%s invalid%s; try again or type%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_DARK_RED, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+            if (szMessage[0] != '\0')
+            {
+                Mewstats_SayText2(client, true, szMessage);
+            }
+
+            return await;
+        }
+
+        char szItem[MEWSTATS_MENU_ITEM_SIZE];
+        Mewstats_ThemeColorMenuItem(szItem, sizeof(szItem), szColor, sizeof(szColor));
+
         char szMessage[256] = "";
-        FormatEx(szMessage, sizeof(szMessage), "%s%sYour color input is%s invalid%s; try again or type%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_DARK_RED, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have choosen %s%s%s as your color", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, szColor, szItem, MEWSTATS_CHAT_COLOR_WHITE);
         if (szMessage[0] != '\0')
         {
             Mewstats_SayText2(client, true, szMessage);
         }
 
-        return Plugin_Handled;
+        if (await == _MEWSTATS_AWAIT_BASE_COLOR)
+        {
+            strcopy(g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, szColor);
+            g_ckCustomBaseColor.Set(client, g_szCustomBaseColor[client]);
+        }
+        else if (await == _MEWSTATS_AWAIT_ACCENT_COLOR)
+        {
+            strcopy(g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, szColor);
+            g_ckCustomAccentColor.Set(client, g_szCustomAccentColor[client]);
+        }
+        else if (await == _MEWSTATS_AWAIT_SEPARATOR_COLOR)
+        {
+            strcopy(g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, szColor);
+            g_ckCustomSeparatorColor.Set(client, g_szCustomSeparatorColor[client]);
+        }
+        else if (await == _MEWSTATS_AWAIT_MLS_BASE_COLOR)
+        {
+            strcopy(g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, szColor);
+            g_ckCustomMlsBaseColor.Set(client, g_szCustomMlsBaseColor[client]);
+        }
+        else if (await == _MEWSTATS_AWAIT_MLS_ACCENT_COLOR)
+        {
+            strcopy(g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, szColor);
+            g_ckCustomMlsAccentColor.Set(client, g_szCustomMlsAccentColor[client]);
+        }
+        else if (await == _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR)
+        {
+            strcopy(g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, szColor);
+            g_ckCustomMlsSeparatorColor.Set(client, g_szCustomMlsSeparatorColor[client]);
+        }
     }
 
-    int await = g_iAwaitInput[client];
-    g_iAwaitInput[client] = 0;
+    if (await == _MEWSTATS_AWAIT_IMPORT_SETTINGS)
+    {
+        if (!Mewstats_ImportSettings(client, text))
+        {
+            char szMessage[256] = "";
+            FormatEx(szMessage, sizeof(szMessage), "%s%sYour settings%s code%s is%s invalid%s; try again or type%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_DARK_RED, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+            if (szMessage[0] != '\0')
+            {
+                Mewstats_SayText2(client, true, szMessage);
+            }
 
-    Mewstats_RouteAwait(client, await, szColor, sizeof(szColor));
-    return Plugin_Handled;
-}
+            return await;
+        }
 
-static void Mewstats_RouteAwait(int client, int await, char[] color, int size)
-{
-    char szItem[MEWSTATS_MENU_ITEM_SIZE];
-    Mewstats_ThemeColorMenuItem(szItem, sizeof(szItem), color, size);
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYour settings updated from%s %s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, text);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+    else if (await == _MEWSTATS_AWAIT_IMPORT_THEME)
+    {
+        if (!Mewstats_ImportTheme(client, text))
+        {
+            char szMessage[256] = "";
+            FormatEx(szMessage, sizeof(szMessage), "%s%sYour theme%s code%s is%s invalid%s; try again or type%s cancel", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_DARK_RED, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER);
+            if (szMessage[0] != '\0')
+            {
+                Mewstats_SayText2(client, true, szMessage);
+            }
 
-    char szMessage[256] = "";
-    FormatEx(szMessage, sizeof(szMessage), "%s%sYou have choosen %s%s%s as your color", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, color, szItem, MEWSTATS_CHAT_COLOR_WHITE);
-    if (szMessage[0] != '\0')
-    {
-        Mewstats_SayText2(client, true, szMessage);
-    }
+            return await;
+        }
 
-    if (await == _MEWSTATS_AWAIT_BASE_COLOR)
-    {
-        strcopy(g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
-        g_ckCustomBaseColor.Set(client, g_szCustomBaseColor[client]);
-    }
-    else if (await == _MEWSTATS_AWAIT_ACCENT_COLOR)
-    {
-        strcopy(g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
-        g_ckCustomAccentColor.Set(client, g_szCustomAccentColor[client]);
-    }
-    else if (await == _MEWSTATS_AWAIT_SEPARATOR_COLOR)
-    {
-        strcopy(g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
-        g_ckCustomSeparatorColor.Set(client, g_szCustomSeparatorColor[client]);
-    }
-    else if (await == _MEWSTATS_AWAIT_MLS_BASE_COLOR)
-    {
-        strcopy(g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
-        g_ckCustomMlsBaseColor.Set(client, g_szCustomMlsBaseColor[client]);
-    }
-    else if (await == _MEWSTATS_AWAIT_MLS_ACCENT_COLOR)
-    {
-        strcopy(g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
-        g_ckCustomMlsAccentColor.Set(client, g_szCustomMlsAccentColor[client]);
-    }
-    else if (await == _MEWSTATS_AWAIT_MLS_SEPARATOR_COLOR)
-    {
-        strcopy(g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, color);
-        g_ckCustomMlsSeparatorColor.Set(client, g_szCustomMlsSeparatorColor[client]);
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYour custom theme updated from%s %s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, text);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
     }
 
-    Menu_Config(client, g_iConfigMenuPosition[client]);
+    return 0;
 }
 
 static void Mewstats_InitStateVars(int client)
@@ -2239,6 +2482,9 @@ static void Mewstats_InitStateVars(int client)
     {
         g_iChatTheme[client] = MEWSTATS_COOKIE_VALUE_CHAT_THEME_STANDARD;
     }
+
+    g_ckSettingsBackup.Get(client, g_szSettingsBackup[client], MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE);
+    g_iStatsBackup[client] = g_ckStatsBackup.GetInt(client, MEWSTATS_COOKIE_VALUE_STATS_BACKUP_DEFAULT);
 }
 
 static void Mewstats_CreateGlobals()
@@ -2391,6 +2637,8 @@ static void Mewstats_CreateCookies()
     g_ckCustomMlsBaseColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_MLS_BASE_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_MLS_BASE_COLOR, CookieAccess_Protected);
     g_ckCustomMlsAccentColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_MLS_ACCENT_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_MLS_ACCENT_COLOR, CookieAccess_Protected);
     g_ckCustomMlsSeparatorColor = RegClientCookie(MEWSTATS_COOKIE_NAME_CUSTOM_MLS_SEPARATOR_COLOR, MEWSTATS_COOKIE_DESCRIPTION_CUSTOM_MLS_SEPARATOR_COLOR, CookieAccess_Protected);
+    g_ckSettingsBackup = RegClientCookie(MEWSTATS_COOKIE_NAME_SETTINGS_BACKUP, MEWSTATS_COOKIE_DESCRIPTION_SETTINGS_BACKUP, CookieAccess_Protected);
+    g_ckStatsBackup = RegClientCookie(MEWSTATS_COOKIE_NAME_STATS_BACKUP, MEWSTATS_COOKIE_DESCRIPTION_STATS_BACKUP, CookieAccess_Protected);
 }
 
 static void Mewstats_CreateCommands()
@@ -2414,6 +2662,349 @@ static void Mewstats_HookCommands()
 {
     AddCommandListener(Listener_AwaitInput, "say");
     AddCommandListener(Listener_AwaitInput, "say_team");
+}
+
+static bool Mewstats_ImportSettings(int client, char[] code)
+{
+    char raw[_MEWSTATS_SETTING_RAW_LEN + 1] = "";
+
+    int len = DecodeBase64(raw, sizeof(raw), code);
+    if (len == _MEWSTATS_SETTING_RAW_LEN || len == _MEWSTATS_SETTING_RAW_LEN - _MEWSTATS_THEME_RAW_LEN)
+    {
+        Mewstats_XorBytes(raw, sizeof(raw));
+        return Mewstats_ImportSettingsRaw(client, raw, sizeof(raw));
+    }
+    if (len == _MEWSTATS_THEME_RAW_LEN)
+    {
+        Mewstats_XorBytes(raw, sizeof(raw));
+        return Mewstats_ImportThemeRaw(client, raw, sizeof(raw));
+    }
+
+    return false;
+}
+
+static bool Mewstats_ImportSettingsRaw(int client, char[] buff, int size)
+{
+    if (buff[0] != _MEWSTATS_SETTING_TAG || size < _MEWSTATS_SETTING_RAW_LEN + 1)
+    {
+        return false;
+    }
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return false;
+    }
+
+    int data = 0;
+    int i = 1;
+
+    data |= view_as<int>(buff[i++]) & 0xFF;
+    data |= (view_as<int>(buff[i++]) & 0xFF) << 8;
+    data |= (view_as<int>(buff[i++]) & 0xFF) << 16;
+
+    // -- #1
+    g_iThrowSpeed[client] = (data >> MEWSTATS_COOKIE_VALUE_THROW_SPEED_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_SPEED_MASK;
+    g_iThrowAngle[client] = (data >> MEWSTATS_COOKIE_VALUE_THROW_ANGLE_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_ANGLE_MASK;
+    g_iThrowTime[client] = (data >> MEWSTATS_COOKIE_VALUE_THROW_TIME_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_TIME_MASK;
+    g_iThrowDeviation[client] = (data >> MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_MASK;
+    g_iThrowStatus[client] = (data >> MEWSTATS_COOKIE_VALUE_THROW_STATUS_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_STATUS_MASK;
+    g_iPartnerStats[client] = (data >> MEWSTATS_COOKIE_VALUE_PARTNER_STATS_SHIFT) & MEWSTATS_COOKIE_VALUE_PARTNER_STATS_MASK;
+    g_iSkyStats[client] = (data >> MEWSTATS_COOKIE_VALUE_SKY_STATS_SHIFT) & MEWSTATS_COOKIE_VALUE_SKY_STATS_MASK;
+    // -- #2
+    g_iMlsStats[client] = (data >> MEWSTATS_COOKIE_VALUE_MLS_STATS_SHIFT) & MEWSTATS_COOKIE_VALUE_MLS_STATS_MASK;
+    g_iShortNames[client] = (data >> MEWSTATS_COOKIE_VALUE_SHORT_NAMES_SHIFT) & MEWSTATS_COOKIE_VALUE_SHORT_NAMES_MASK;
+    g_iCrouchName[client] = (data >> MEWSTATS_COOKIE_VALUE_CROUCH_NAME_SHIFT) & MEWSTATS_COOKIE_VALUE_CROUCH_NAME_MASK;
+    g_iColorValues[client] = (data >> MEWSTATS_COOKIE_VALUE_COLOR_VALUES_SHIFT) & MEWSTATS_COOKIE_VALUE_COLOR_VALUES_MASK;
+    g_iValuePrecision[client] = (data >> MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_SHIFT) & MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_MASK;
+    g_iChatTheme[client] = (data >> MEWSTATS_COOKIE_VALUE_CHAT_THEME_SHIFT) & MEWSTATS_COOKIE_VALUE_CHAT_THEME_MASK;
+    // -- #3
+    g_iChatSeparator[client] = (data >> MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_SHIFT) & MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_MASK;
+    g_iChatSound[client] = (data >> MEWSTATS_COOKIE_VALUE_CHAT_SOUND_SHIFT) & MEWSTATS_COOKIE_VALUE_CHAT_SOUND_MASK;
+    g_iMlsGain[client] = (data >> MEWSTATS_COOKIE_VALUE_MLS_GAIN_SHIFT) & MEWSTATS_COOKIE_VALUE_MLS_GAIN_MASK;
+    g_iMlsDeviation[client] = (data >> MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_SHIFT) & MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_MASK;
+    g_iPartnerPrefix[client] = (data >> MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_SHIFT) & MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_MASK;
+    g_iSkyPrecision[client] = (data >> MEWSTATS_COOKIE_VALUE_SKY_PRECISION_SHIFT) & MEWSTATS_COOKIE_VALUE_SKY_PRECISION_MASK;
+
+    g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+    g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+    g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+    g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+    g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+    g_ckPartnerStats.SetInt(client, g_iPartnerStats[client]);
+    g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+    g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
+    g_ckShortNames.SetInt(client, g_iShortNames[client]);
+    g_ckCrouchName.SetInt(client, g_iCrouchName[client]);
+    g_ckColorValues.SetInt(client, g_iColorValues[client]);
+    g_ckValuePreicision.SetInt(client, g_iValuePrecision[client]);
+    g_ckChatTheme.SetInt(client, g_iChatTheme[client]);
+    g_ckChatSeparator.SetInt(client, g_iChatSeparator[client]);
+    g_ckChatSound.SetInt(client, g_iChatSound[client]);
+    g_ckMlsGain.SetInt(client, g_iMlsGain[client]);
+    g_ckMlsDeviation.SetInt(client, g_iMlsDeviation[client]);
+    g_ckPartnerPrefix.SetInt(client, g_iPartnerPrefix[client]);
+    g_ckSkyPrecision.SetInt(client, g_iSkyPrecision[client]);
+
+    Mewstats_ImportThemeRaw(client, buff[i], size - i);
+
+    return true;
+}
+
+static bool Mewstats_ExportSettings(int client, char[] buff, int size)
+{
+    char raw[_MEWSTATS_SETTING_RAW_LEN + 1] = "";
+    int rsize = Mewstats_ExportSettingsRaw(client, raw, sizeof(raw));
+    if (raw[0] == '\0')
+    {
+        buff[0] = '\0';
+        return false;
+    }
+
+    Mewstats_XorBytes(raw, rsize);
+    int csize = EncodeBase64(buff, size, raw, rsize);
+
+    buff[csize] = '\0';
+    return true;
+}
+
+static int Mewstats_ExportSettingsRaw(int client, char[] buff, int size)
+{
+    if (size < _MEWSTATS_SETTING_RAW_LEN + 1)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    if (!Mewstats_IsClientInGame(client))
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+
+    int i = 0;
+    buff[i++] = _MEWSTATS_SETTING_TAG;
+
+    int data = 0;
+    // -- #1
+    data |= (g_iThrowSpeed[client] & MEWSTATS_COOKIE_VALUE_THROW_SPEED_MASK) << MEWSTATS_COOKIE_VALUE_THROW_SPEED_SHIFT;                // 1 bit    [#01]
+    data |= (g_iThrowAngle[client] & MEWSTATS_COOKIE_VALUE_THROW_ANGLE_MASK) << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_SHIFT;                // 1 bit    [#02]
+    data |= (g_iThrowTime[client] & MEWSTATS_COOKIE_VALUE_THROW_TIME_MASK) << MEWSTATS_COOKIE_VALUE_THROW_TIME_SHIFT;                   // 2 bits   [#04]
+    data |= (g_iThrowDeviation[client] & MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_MASK) << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_SHIFT;    // 1 bit    [#05]
+    data |= (g_iThrowStatus[client] & MEWSTATS_COOKIE_VALUE_THROW_STATUS_MASK) << MEWSTATS_COOKIE_VALUE_THROW_STATUS_SHIFT;             // 1 bit    [#06]
+    data |= (g_iPartnerStats[client] & MEWSTATS_COOKIE_VALUE_PARTNER_STATS_MASK) << MEWSTATS_COOKIE_VALUE_PARTNER_STATS_SHIFT;          // 1 bit    [#07]
+    data |= (g_iSkyStats[client] & MEWSTATS_COOKIE_VALUE_SKY_STATS_MASK) << MEWSTATS_COOKIE_VALUE_SKY_STATS_SHIFT;                      // 1 bit    [#08]
+    // -- #2
+    data |= (g_iMlsStats[client] & MEWSTATS_COOKIE_VALUE_MLS_STATS_MASK) << MEWSTATS_COOKIE_VALUE_MLS_STATS_SHIFT;                      // 1 bit    [#09]
+    data |= (g_iShortNames[client] & MEWSTATS_COOKIE_VALUE_SHORT_NAMES_MASK) << MEWSTATS_COOKIE_VALUE_MLS_STATS_SHIFT;                    // 1 bit    [#10]
+    data |= (g_iCrouchName[client] & MEWSTATS_COOKIE_VALUE_CROUCH_NAME_MASK) << MEWSTATS_COOKIE_VALUE_CROUCH_NAME_SHIFT;                // 1 bit    [#11]
+    data |= (g_iColorValues[client] & MEWSTATS_COOKIE_VALUE_COLOR_VALUES_MASK) << MEWSTATS_COOKIE_VALUE_COLOR_VALUES_SHIFT;             // 1 bit    [#12]
+    data |= (g_iValuePrecision[client] & MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_MASK) << MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_SHIFT;    // 1 bit    [#13]
+    data |= (g_iChatTheme[client] & MEWSTATS_COOKIE_VALUE_CHAT_THEME_MASK) << MEWSTATS_COOKIE_VALUE_CHAT_THEME_SHIFT;                   // 3 bits   [#16]
+    // -- #3
+    data |= (g_iChatSeparator[client] & MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_MASK) << MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_SHIFT;       // 1 bit    [#17]
+    data |= (g_iChatSound[client] & MEWSTATS_COOKIE_VALUE_CHAT_SOUND_MASK) << MEWSTATS_COOKIE_VALUE_CHAT_SOUND_SHIFT;                   // 1 bit    [#18]
+    data |= (g_iMlsGain[client] & MEWSTATS_COOKIE_VALUE_MLS_GAIN_MASK) << MEWSTATS_COOKIE_VALUE_MLS_GAIN_SHIFT;                         // 1 bit    [#19]
+    data |= (g_iMlsDeviation[client] & MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_MASK) << MEWSTATS_COOKIE_VALUE_MLS_DEVIATION_SHIFT;          // 1 bit    [#20]
+    data |= (g_iPartnerPrefix[client] & MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_MASK) << MEWSTATS_COOKIE_VALUE_PARTNER_PREFIX_SHIFT;       // 2 bits   [#22]
+    data |= (g_iSkyPrecision[client] & MEWSTATS_COOKIE_VALUE_SKY_PRECISION_MASK) << MEWSTATS_COOKIE_VALUE_SKY_PRECISION_SHIFT;          // 2 bits   [#24]
+
+    buff[i++] = view_as<char>(data & 0xFF);
+    buff[i++] = view_as<char>((data >> 8) & 0xFF);
+    buff[i++] = view_as<char>((data >> 16) & 0xFF);
+
+    return i + Mewstats_ExportThemeRaw(client, buff[i], size - i);
+}
+
+static bool Mewstats_ImportTheme(int client, char[] code)
+{
+    char raw[_MEWSTATS_SETTING_RAW_LEN + 1] = "";
+
+    int len = DecodeBase64(raw, sizeof(raw), code);
+    if (len == _MEWSTATS_SETTING_RAW_LEN)
+    {
+        Mewstats_XorBytes(raw, sizeof(raw));
+
+        int start = _MEWSTATS_SETTING_RAW_LEN - _MEWSTATS_THEME_RAW_LEN;
+        if (start >= sizeof(raw))
+        {
+            return false;
+        }
+
+        return Mewstats_ImportThemeRaw(client, raw[start], sizeof(raw) - start);
+    }
+    if (len == _MEWSTATS_THEME_RAW_LEN)
+    {
+        Mewstats_XorBytes(raw, sizeof(raw));
+        return Mewstats_ImportThemeRaw(client, raw, sizeof(raw));
+    }
+
+    return false;
+}
+
+static bool Mewstats_ImportThemeRaw(int client, char[] buff, int size)
+{
+    if (buff[0] != _MEWSTATS_THEME_TAG || size < _MEWSTATS_THEME_RAW_LEN + 1)
+    {
+        return false;
+    }
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return false;
+    }
+
+    int b = 0;
+    int g = 0;
+    int r = 0;
+    int color = 0;
+    int i = 1;
+
+    b = view_as<int>(buff[i++]) & 0xFF;
+    g = view_as<int>(buff[i++]) & 0xFF;
+    r = view_as<int>(buff[i++]) & 0xFF;
+    color = b | (g << 8) | (r << 16);
+    FormatEx(g_szCustomBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, "\x07%06X", color);
+
+    b = view_as<int>(buff[i++]) & 0xFF;
+    g = view_as<int>(buff[i++]) & 0xFF;
+    r = view_as<int>(buff[i++]) & 0xFF;
+    color = b | (g << 8) | (r << 16);
+    FormatEx(g_szCustomAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, "\x07%06X", color);
+
+    b = view_as<int>(buff[i++]) & 0xFF;
+    g = view_as<int>(buff[i++]) & 0xFF;
+    r = view_as<int>(buff[i++]) & 0xFF;
+    color = b | (g << 8) | (r << 16);
+    FormatEx(g_szCustomSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, "\x07%06X", color);
+
+    b = view_as<int>(buff[i++]) & 0xFF;
+    g = view_as<int>(buff[i++]) & 0xFF;
+    r = view_as<int>(buff[i++]) & 0xFF;
+    color = b | (g << 8) | (r << 16);
+    FormatEx(g_szCustomMlsBaseColor[client], MEWSTATS_THEME_COLOR_SIZE, "\x07%06X", color);
+
+    b = view_as<int>(buff[i++]) & 0xFF;
+    g = view_as<int>(buff[i++]) & 0xFF;
+    r = view_as<int>(buff[i++]) & 0xFF;
+    color = b | (g << 8) | (r << 16);
+    FormatEx(g_szCustomMlsAccentColor[client], MEWSTATS_THEME_COLOR_SIZE, "\x07%06X", color);
+
+    b = view_as<int>(buff[i++]) & 0xFF;
+    g = view_as<int>(buff[i++]) & 0xFF;
+    r = view_as<int>(buff[i++]) & 0xFF;
+    color = b | (g << 8) | (r << 16);
+    FormatEx(g_szCustomMlsSeparatorColor[client], MEWSTATS_THEME_COLOR_SIZE, "\x07%06X", color);
+
+    g_ckCustomBaseColor.Set(client, g_szCustomBaseColor[client]);
+    g_ckCustomAccentColor.Set(client, g_szCustomAccentColor[client]);
+    g_ckCustomSeparatorColor.Set(client, g_szCustomSeparatorColor[client]);
+    g_ckCustomMlsBaseColor.Set(client, g_szCustomMlsBaseColor[client]);
+    g_ckCustomMlsAccentColor.Set(client, g_szCustomMlsAccentColor[client]);
+    g_ckCustomMlsSeparatorColor.Set(client, g_szCustomMlsSeparatorColor[client]);
+
+    return true;
+}
+
+static bool Mewstats_ExportTheme(int client, char[] buff, int size)
+{
+    char raw[_MEWSTATS_THEME_RAW_LEN + 1] = "";
+    int rsize = Mewstats_ExportThemeRaw(client, raw, sizeof(raw));
+    if (raw[0] == '\0')
+    {
+        buff[0] = '\0';
+        return false;
+    }
+
+    Mewstats_XorBytes(raw, rsize);
+    int csize = EncodeBase64(buff, size, raw, rsize);
+
+    buff[csize] = '\0';
+    return true;
+}
+
+static int Mewstats_ExportThemeRaw(int client, char[] buff, int size)
+{
+    if (size < _MEWSTATS_THEME_RAW_LEN + 1)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    if (!Mewstats_IsClientInGame(client))
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    if (!Mewstats_IsCustomThemeComplete(client))
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+
+    int i = 0;
+    int j = 0;
+    int c = 0;
+
+    buff[i++] = _MEWSTATS_THEME_TAG;
+
+    c = StringToIntEx(g_szCustomBaseColor[client][1], j, 16);
+    if (c != 6)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    buff[i++] = view_as<char>(j & 0xFF);
+    buff[i++] = view_as<char>((j >> 8) & 0xFF);
+    buff[i++] = view_as<char>((j >> 16) & 0xFF);
+
+    c = StringToIntEx(g_szCustomAccentColor[client][1], j, 16);
+    if (c != 6)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    buff[i++] = view_as<char>(j & 0xFF);
+    buff[i++] = view_as<char>((j >> 8) & 0xFF);
+    buff[i++] = view_as<char>((j >> 16) & 0xFF);
+
+    c = StringToIntEx(g_szCustomSeparatorColor[client][1], j, 16);
+    if (c != 6)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    buff[i++] = view_as<char>(j & 0xFF);
+    buff[i++] = view_as<char>((j >> 8) & 0xFF);
+    buff[i++] = view_as<char>((j >> 16) & 0xFF);
+
+    c = StringToIntEx(g_szCustomMlsBaseColor[client][1], j, 16);
+    if (c != 6)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    buff[i++] = view_as<char>(j & 0xFF);
+    buff[i++] = view_as<char>((j >> 8) & 0xFF);
+    buff[i++] = view_as<char>((j >> 16) & 0xFF);
+
+    c = StringToIntEx(g_szCustomMlsAccentColor[client][1], j, 16);
+    if (c != 6)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    buff[i++] = view_as<char>(j & 0xFF);
+    buff[i++] = view_as<char>((j >> 8) & 0xFF);
+    buff[i++] = view_as<char>((j >> 16) & 0xFF);
+
+    c = StringToIntEx(g_szCustomMlsSeparatorColor[client][1], j, 16);
+    if (c != 6)
+    {
+        buff[0] = '\0';
+        return 0;
+    }
+    buff[i++] = view_as<char>(j & 0xFF);
+    buff[i++] = view_as<char>((j >> 8) & 0xFF);
+    buff[i++] = view_as<char>((j >> 16) & 0xFF);
+
+    buff[i] = '\0';
+    return i;
 }
 
 static bool Mewstats_IsCustomThemeComplete(int client)
