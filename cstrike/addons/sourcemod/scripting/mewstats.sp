@@ -42,7 +42,10 @@
 #pragma newdecls required
 #pragma semicolon 1
 
+#define _MEWSTATS_PARTNER_UNKNOWN -1
 #define _MEWSTATS_TICK_UNKNOWN -1
+#define _MEWSTATS_THROW_TIME_TICKS 20
+#define _MEWSTATS_DEVIATION_UNKNOWN 1337.0
 #define _MEWSTATS_MLS_STORE_LIMIT 12
 
 #define _MEWSTATS_SETTING_TAG 's'
@@ -134,12 +137,24 @@ char g_szCrouchNameModes[MEWSTATS_COOKIE_VALUE_CROUCH_NAME_COUNT][MEWSTATS_MENU_
 char g_szColorValuesModes[MEWSTATS_COOKIE_VALUE_COLOR_VALUES_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szValuePrecisionModes[MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szChatThemeModes[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_MENU_ITEM_SIZE];
-char g_szChatThemeColors[MEWSTATS_THEME_COUNT][MEWSTATS_THEME_COLOR_COUNT][MEWSTATS_THEME_COLOR_SIZE];
+char g_szChatThemeColors[MEWSTATS_COOKIE_VALUE_CHAT_THEME_COUNT][MEWSTATS_THEME_COLOR_COUNT][MEWSTATS_THEME_COLOR_SIZE];
 char g_szChatSeparatorModes[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 char g_szChatSeparatorValues[MEWSTATS_COOKIE_VALUE_CHAT_SEPARATOR_COUNT][MEWSTATS_CHAT_SEPARATOR_SIZE];
 char g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT][MEWSTATS_MENU_ITEM_SIZE];
 
-int g_iThrowJumpTick[MAXPLAYERS + 1];
+enum struct ThrowInfo
+{
+    int m_iTicks;
+    float m_fTime;
+    float m_fSpeed;
+    float m_fAngle;
+    float m_fDeviation;
+    bool m_bDucked;
+    bool m_bJumped;
+}
+
+ThrowInfo g_ThrowInfo[MAXPLAYERS + 1];
+
 int g_iSkyJumpTick[MAXPLAYERS + 1];
 int g_iFlashHitTick[MAXPLAYERS + 1];
 int g_iMlsFlashCount[MAXPLAYERS + 1];
@@ -201,7 +216,13 @@ public void OnPluginStart()
 
 public void OnClientPutInServer(int client)
 {
-    g_iThrowJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
+    g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+    g_ThrowInfo[client].m_fSpeed = 0.0;
+    g_ThrowInfo[client].m_fAngle = 0.0;
+    g_ThrowInfo[client].m_fDeviation = _MEWSTATS_DEVIATION_UNKNOWN;
+    g_ThrowInfo[client].m_bDucked = false;
+    g_ThrowInfo[client].m_bJumped = false;
+
     g_iSkyJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
     g_iFlashHitTick[client] = _MEWSTATS_TICK_UNKNOWN;
     g_iMlsFlashCount[client] = 0;
@@ -227,9 +248,14 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     }
 
     int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
-    if (Mewstats_IsFlag(flags, FL_ONGROUND))
+    MoveType movetype = GetEntityMoveType(client);
+    if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
     {
-        g_iThrowJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
+        g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+    }
+    if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
+    {
+        ++g_ThrowInfo[client].m_iTicks;
     }
 
     if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
@@ -763,10 +789,72 @@ static void Frame_FlashbangSpawn(int ref)
     MoveType movetype = GetEntityMoveType(thrower);
     if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
     {
-        g_iThrowJumpTick[thrower] = _MEWSTATS_TICK_UNKNOWN;
+        g_ThrowInfo[thrower].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+    }
+    g_ThrowInfo[thrower].m_bDucked = Mewstats_IsFlag(flags, FL_DUCKING);
+
+    float velocity[3];
+    GetEntPropVector(thrower, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
+
+    velocity[2] = 0.0;
+    g_ThrowInfo[thrower].m_fSpeed = GetVectorLength(velocity, false) + 0.0001;
+
+    float angles[3];
+    GetClientEyeAngles(thrower, angles);
+
+    g_ThrowInfo[thrower].m_fAngle = -angles[0];
+
+    float time = 0.0;
+    if (g_ThrowInfo[thrower].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
+    {
+        time = (g_ThrowInfo[thrower].m_iTicks - 1) * GetTickInterval();
+        if (time < 0.0)
+        {
+            time = 0.0;
+        }
+        else
+        {
+            time += 0.0001;
+        }
+    }
+    g_ThrowInfo[thrower].m_fTime = time;
+
+    int partner = Mewstats_GetPartner(thrower);
+    if (partner != _MEWSTATS_PARTNER_UNKNOWN)
+    {
+        float flashbangVelocity[3];
+        GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, flashbangVelocity);
+        flashbangVelocity[2] = 0.0;
+
+        float flashbangPosition[3];
+        GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
+
+        float partnerPosition[3];
+        GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, partnerPosition);
+
+        float partnerDirection[3];
+        partnerDirection[0] = partnerPosition[0] - flashbangPosition[0];
+        partnerDirection[1] = partnerPosition[1] - flashbangPosition[1];
+        partnerDirection[2] = 0.0;
+
+        g_ThrowInfo[thrower].m_fDeviation = Mewstats_RelativeDeviation(flashbangVelocity, partnerDirection);
+    }
+    else
+    {
+        g_ThrowInfo[thrower].m_fDeviation = _MEWSTATS_DEVIATION_UNKNOWN;
     }
 
-    Mewstats_PrintThrowStats(false, thrower, thrower, entity);
+    Mewstats_PrintThrowStatsEx(thrower);
+}
+
+static void Mewstats_PrintThrowStatsEx(int thrower)
+{
+    if (!Mewstats_IsClientInGame(thrower))
+    {
+        return;
+    }
+
+    Mewstats_PrintThrowStats(false, thrower, thrower);
     for (int client = 1; client <= MaxClients; ++client)
     {
         if (!Mewstats_IsPlayerInGame(client))
@@ -790,58 +878,51 @@ static void Frame_FlashbangSpawn(int ref)
             continue;
         }
 
-        Mewstats_PrintThrowStats(false, client, thrower, entity);
+        Mewstats_PrintThrowStats(false, client, thrower);
     }
 
-    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") == FeatureStatus_Available)
+    int partner = Mewstats_GetPartner(thrower);
+    if (partner != _MEWSTATS_PARTNER_UNKNOWN)
     {
-        int partner = Timer_GetPartner(thrower);
-        if (Mewstats_IsAliveClientInGame(partner))
+        if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
         {
-            if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+            Mewstats_PrintThrowStats(true, partner, thrower);
+        }
+
+        for (int client = 1; client <= MaxClients; ++client)
+        {
+            if (!Mewstats_IsPlayerInGame(client))
             {
-                Mewstats_PrintThrowStats(true, partner, thrower, entity);
+                continue;
+            }
+            if (IsPlayerAlive(client))
+            {
+                continue;
             }
 
-            for (int client = 1; client <= MaxClients; ++client)
+            int mode = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
+            if (mode < 4 || mode > 6)
             {
-                if (!Mewstats_IsPlayerInGame(client))
-                {
-                    continue;
-                }
-                if (IsPlayerAlive(client))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                int mode = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_IOBSERVERMODE);
-                if (mode < 4 || mode > 6)
-                {
-                    continue;
-                }
+            int target = GetEntPropEnt(client, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
+            if (target != partner)
+            {
+                continue;
+            }
 
-                int target = GetEntPropEnt(client, Prop_Send, MEWSTATS_PROP_M_HOBSERVERTARGET);
-                if (target != partner)
-                {
-                    continue;
-                }
-
-                if (g_iPartnerStats[client] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
-                {
-                    Mewstats_PrintThrowStats(true, client, thrower, entity);
-                }
+            if (g_iPartnerStats[client] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+            {
+                Mewstats_PrintThrowStats(true, client, thrower);
             }
         }
     }
 }
 
-static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int entity)
+static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower)
 {
     if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
-    {
-        return;
-    }
-    if (!IsValidEntity(entity))
     {
         return;
     }
@@ -874,7 +955,7 @@ static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower, int
     Mewstats_FormatThrowTime(client, thrower, szThrowTime, sizeof(szThrowTime));
 
     char szThrowDeviation[_MEWSTATS_ELEMENT_SIZE] = "";
-    Mewstats_FormatThrowDeviation(client, thrower, entity, szThrowDeviation, sizeof(szThrowDeviation));
+    Mewstats_FormatThrowDeviation(client, thrower, szThrowDeviation, sizeof(szThrowDeviation));
 
     char szThrowStatus[_MEWSTATS_ELEMENT_SIZE] = "";
     Mewstats_FormatThrowStatus(client, thrower, szThrowStatus, sizeof(szThrowStatus));
@@ -942,13 +1023,10 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
         return;
     }
 
-    int flags = GetEntProp(thrower, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
-    bool ducking = Mewstats_IsFlag(flags, FL_DUCKING);
-
     char szPhrase[MEWSTATS_MESSAGE_KEY_SIZE] = "";
     if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_TRUE)
     {
-        if (ducking)
+        if (g_ThrowInfo[thrower].m_bDucked)
         {
             if (g_iCrouchName[client] == MEWSTATS_COOKIE_VALUE_CROUCH_NAME_DUCK)
             {
@@ -966,7 +1044,7 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     }
     else if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_FALSE)
     {
-        if (ducking)
+        if (g_ThrowInfo[thrower].m_bDucked)
         {
             if (g_iCrouchName[client] == MEWSTATS_COOKIE_VALUE_CROUCH_NAME_DUCK)
             {
@@ -987,12 +1065,6 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
         return;
     }
 
-    float velocity[3];
-    GetEntPropVector(thrower, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
-
-    velocity[2] = 0.0;
-    float speed = GetVectorLength(velocity, false) + 0.0001;
-
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
     {
@@ -1011,13 +1083,13 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_TRUE)
     {
         int color[3];
-        if (ducking)
+        if (g_ThrowInfo[thrower].m_bDucked)
         {
-            Mewstats_TransColor(speed / 85.0 * 100.0, 70.0, color);
+            Mewstats_TransColor(g_ThrowInfo[thrower].m_fSpeed / 85.0 * 100.0, 70.0, color);
         }
         else
         {
-            Mewstats_TransColor(speed / 250.0 * 100.0, 90.0, color);
+            Mewstats_TransColor(g_ThrowInfo[thrower].m_fSpeed / 250.0 * 100.0, 90.0, color);
         }
 
         FormatEx(szAccentColor, sizeof(szAccentColor), "\x07%02X%02X%02X", color[0], color[1], color[2]);
@@ -1041,11 +1113,11 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
     char szSpeed[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szSpeed, sizeof(szSpeed), "%i", RoundToZero(speed));
+        FormatEx(szSpeed, sizeof(szSpeed), "%i", RoundToZero(g_ThrowInfo[thrower].m_fSpeed));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
-        FormatEx(szSpeed, sizeof(szSpeed), "%.1f", Mewstats_TruncateFloat(speed, 1));
+        FormatEx(szSpeed, sizeof(szSpeed), "%.1f", Mewstats_TruncateFloat(g_ThrowInfo[thrower].m_fSpeed, 1));
     }
     if (szSpeed[0] == '\0')
     {
@@ -1080,11 +1152,6 @@ static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int 
         return;
     }
 
-    float angles[3];
-    GetClientEyeAngles(thrower, angles);
-
-    float angle = -1.0 * angles[0];
-
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
@@ -1105,11 +1172,11 @@ static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int 
     char szAngle[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%i", RoundToZero(angle));
+        FormatEx(szAngle, sizeof(szAngle), "%i", RoundToZero(g_ThrowInfo[thrower].m_fAngle));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%.1f", Mewstats_TruncateFloat(angle, 1));
+        FormatEx(szAngle, sizeof(szAngle), "%.1f", Mewstats_TruncateFloat(g_ThrowInfo[thrower].m_fAngle, 1));
     }
     if (szAngle[0] == '\0')
     {
@@ -1144,17 +1211,6 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
         return;
     }
 
-    int tick = 0;
-    if (g_iThrowJumpTick[thrower] != _MEWSTATS_TICK_UNKNOWN)
-    {
-        tick = GetEntProp(thrower, Prop_Send, MEWSTATS_PROP_M_NTICKBASE) - g_iThrowJumpTick[thrower] - 2;
-        if (tick < 0)
-        {
-            tick = 0;
-        }
-    }
-    float time = tick * GetTickInterval() + 0.0001;
-
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     if (g_iChatTheme[client] != MEWSTATS_COOKIE_VALUE_CHAT_THEME_CUSTOM)
     {
@@ -1173,7 +1229,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_TRUE)
     {
         int color[3];
-        Mewstats_TransColor(100.0 - time / 0.1 * 100.0, 50.0, color);
+        Mewstats_TransColor(100.0 - g_ThrowInfo[thrower].m_fTime / 0.06 * 100.0, 42.0, color);
 
         FormatEx(szAccentColor, sizeof(szAccentColor), "\x07%02X%02X%02X", color[0], color[1], color[2]);
     }
@@ -1194,7 +1250,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     char szTime[32] = "";
-    FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(time, 2));
+    FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(g_ThrowInfo[thrower].m_fTime, 2));
     if (szTime[0] == '\0')
     {
         return;
@@ -1203,17 +1259,9 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     FormatEx(buff, size, "%T", szPhrase, client, szBaseColor, szAccentColor, szTime);
 }
 
-static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, char[] buff, int size)
+static void Mewstats_FormatThrowDeviation(int client, int thrower, char[] buff, int size)
 {
-    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") != FeatureStatus_Available)
-    {
-        return;
-    }
     if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
-    {
-        return;
-    }
-    if (!IsValidEntity(entity))
     {
         return;
     }
@@ -1221,9 +1269,7 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, c
     {
         return;
     }
-
-    int partner = Timer_GetPartner(thrower);
-    if (!Mewstats_IsAliveClientInGame(partner))
+    if (g_ThrowInfo[thrower].m_fDeviation == _MEWSTATS_DEVIATION_UNKNOWN)
     {
         return;
     }
@@ -1241,23 +1287,6 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, c
     {
         return;
     }
-
-    float flashbangVelocity[3];
-    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, flashbangVelocity);
-    flashbangVelocity[2] = 0.0;
-
-    float flashbangPosition[3];
-    GetEntPropVector(entity, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, flashbangPosition);
-
-    float partnerPosition[3];
-    GetEntPropVector(partner, Prop_Data, MEWSTATS_PROP_M_VECORIGIN, partnerPosition);
-
-    float partnerDirection[3];
-    partnerDirection[0] = partnerPosition[0] - flashbangPosition[0];
-    partnerDirection[1] = partnerPosition[1] - flashbangPosition[1];
-    partnerDirection[2] = 0.0;
-
-    float angle = Mewstats_RelativeDeviation(flashbangVelocity, partnerDirection);
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
     char szAccentColor[MEWSTATS_THEME_COLOR_SIZE] = "";
@@ -1279,11 +1308,11 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, int entity, c
     char szAngle[32] = "";
     if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ZERO)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%i", RoundToZero(angle));
+        FormatEx(szAngle, sizeof(szAngle), "%i", RoundToZero(g_ThrowInfo[thrower].m_fDeviation));
     }
     else if (g_iValuePrecision[client] == MEWSTATS_COOKIE_VALUE_VALUE_PRECISION_DOT_ONE)
     {
-        FormatEx(szAngle, sizeof(szAngle), "%.1f", Mewstats_TruncateFloat(angle, 1));
+        FormatEx(szAngle, sizeof(szAngle), "%.1f", Mewstats_TruncateFloat(g_ThrowInfo[thrower].m_fDeviation, 1));
     }
     if (szAngle[0] == '\0')
     {
@@ -1303,7 +1332,7 @@ static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int
     {
         return;
     }
-    if (g_iThrowJumpTick[thrower] != _MEWSTATS_TICK_UNKNOWN)
+    if (g_ThrowInfo[thrower].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
     {
         return;
     }
@@ -1352,7 +1381,7 @@ static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
         return;
     }
 
-    g_iThrowJumpTick[client] = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_NTICKBASE);
+    g_ThrowInfo[client].m_iTicks = 0;
 }
 
 static Action Command_Stats(int client, int argc)
@@ -3187,4 +3216,20 @@ static bool Mewstats_ParseThemeColor(char[] buff, int size, char[] text, int tsi
    buff[i] = '\0';
 
    return true;
+}
+
+static int Mewstats_GetPartner(int client)
+{
+    if (GetFeatureStatus(FeatureType_Native, "Timer_GetPartner") != FeatureStatus_Available)
+    {
+        return _MEWSTATS_PARTNER_UNKNOWN;
+    }
+
+    int partner = Timer_GetPartner(client);
+    if (!Mewstats_IsAliveClientInGame(partner))
+    {
+        return _MEWSTATS_PARTNER_UNKNOWN;
+    }
+
+    return partner;
 }

@@ -21,6 +21,7 @@
 #define _mewstats_prop_included_
 
 #define MEWSTATS_PROP_M_HTHROWER "m_hThrower"
+#define MEWSTATS_PROP_M_HOWNERENTITY "m_hOwnerEntity"
 #define MEWSTATS_PROP_M_VECABSVELOCITY "m_vecAbsVelocity"
 #define MEWSTATS_PROP_M_VECORIGIN "m_vecOrigin"
 #define MEWSTATS_PROP_M_VECMAXS "m_vecMaxs"

@@ -26,7 +26,7 @@ stock void Mewstats_TransColor(float percent, float midpoint, int color[3])
     {
         percent = 0.0;
     }
-    if (percent > 100.0)
+    else if (percent > 100.0)
     {
         percent = 100.0;
     }
@@ -50,7 +50,7 @@ stock void Mewstats_TransColor(float percent, float midpoint, int color[3])
     {
         red = 0;
     }
-    if (red > 255)
+    else if (red > 255)
     {
         red = 255;
     }
@@ -59,7 +59,7 @@ stock void Mewstats_TransColor(float percent, float midpoint, int color[3])
     {
         green = 0;
     }
-    if (green > 255)
+    else if (green > 255)
     {
         green = 255;
     }

@@ -119,6 +119,15 @@ stock float Mewstats_RelativeDeviation(const float arg1[3], const float arg2[3])
         angle = 180.0 - angle;
     }
 
+    if (angle < 0.0)
+    {
+        angle = 0.0;
+    }
+    else if (angle > 90.0)
+    {
+        angle = 90.0;
+    }
+
     float cross = vec1[0] * vec2[1] - vec1[1] * vec2[0];
     if (cross < 0.0)
     {
