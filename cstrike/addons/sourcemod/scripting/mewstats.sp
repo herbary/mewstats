@@ -1812,26 +1812,85 @@ static int Mewstats_GetSnapshot(int client)
 
 static Action Command_Import(int client, int argc)
 {
-    return Plugin_Continue;
+    if (!Mewstats_IsClientInGame(client) || argc < 1)
+    {
+        return Plugin_Handled;
+    }
 
-    // if (!Mewstats_IsClientInGame(client))
-    // {
-    //     return Plugin_Handled;
-    // }
+    char szText[256] = "";
+    GetCmdArg(1, szText, sizeof(szText));
 
-    // return Plugin_Handled;
+    TrimString(szText);
+    StripQuotes(szText);
+
+    if (!Mewstats_ImportSettings(client, szText))
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYour settings%s code%s is%s invalid", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_DARK_RED);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+
+        return Plugin_Handled;
+    }
+
+    bool flag = true;
+    if (argc > 1)
+    {
+        char arg[64] = "";
+        GetCmdArg(2, arg, sizeof(arg));
+
+        TrimString(arg);
+        StripQuotes(arg);
+
+        int j = 1;
+        int c = StringToIntEx(arg, j);
+
+        flag = !(c > 0 && j == 0);
+    }
+
+    if (flag)
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYour settings updated from%s %s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, szText);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+    return Plugin_Handled;
 }
 
 static Action Command_Export(int client, int argc)
 {
-    return Plugin_Continue;
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
 
-    // if (!Mewstats_IsClientInGame(client))
-    // {
-    //     return Plugin_Handled;
-    // }
+    char code[MEWSTATS_COOKIE_VALUE_SETTINGS_BACKUP_SIZE] = "";
+    Mewstats_ExportSettings(client, code, sizeof(code));
 
-    // return Plugin_Handled;
+    if (code[0] == '\0')
+    {
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sWe could not generate your settings%s code%s; something went wrong", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+        return Plugin_Handled;
+    }
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%s%s", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, code);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
+
+    return Plugin_Handled;
 }
 
 static Action Command_Config(int client, int argc)
