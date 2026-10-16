@@ -1679,99 +1679,136 @@ static void Mewstats_CycleCookie(int client, Cookie cookie, int storage[MAXPLAYE
     cookie.SetInt(client, storage[client]);
 }
 
+#define _MEWSTATS_THROW_SPEED_SHIFT 0
+#define _MEWSTATS_THROW_ANGLE_SHIFT 1
+#define _MEWSTATS_THROW_TIME_SHIFT 2
+#define _MEWSTATS_THROW_DEVIATION_SHIFT 4
+#define _MEWSTATS_THROW_STATUS_SHIFT 5
+#define _MEWSTATS_SKY_STATS_SHIFT 6
+#define _MEWSTATS_MLS_STATS_SHIFT 7
+
 static Action Command_All(int client, int argc)
 {
-    return Plugin_Continue;
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
 
-    // if (!Mewstats_IsClientInGame(client))
-    // {
-    //     return Plugin_Handled;
-    // }
+    int snapshot = Mewstats_GetSnapshot(client);
+    if (snapshot > 0)
+    {
+        // Saving Snapshot
+        g_iStatsBackup[client] = snapshot;
+        g_ckStatsBackup.SetInt(client, g_iStatsBackup[client]);
 
-    // int snapshot = Mewstats_GetSnapshot(client);
-    // if (snapshot > 0)
-    // {
-    //     // Saving Snapshot
-    //     g_iLastBitflags[client] = snapshot;
-    //     g_ckLastBitflags.SetInt(client, g_iLastBitflags[client]);
+        // Turning Things Off
+        g_iThrowSpeed[client] = MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
+        g_iThrowAngle[client] = MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
+        g_iThrowTime[client] = MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
+        g_iThrowDeviation[client] = MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
+        g_iThrowStatus[client] = MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
+        g_iSkyStats[client] = MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
+        g_iMlsStats[client] = MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
 
-    //     // Turning Things Off
-    //     g_iThrowSpeed[client] = MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
-    //     g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+        g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+        g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+        g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+        g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+        g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+        g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+        g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
 
-    //     g_iThrowAngle[client] = MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
-    //     g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
+    else
+    {
+        // Getting Snapshot
+        int data = g_iStatsBackup[client];
+        if (data == MEWSTATS_COOKIE_VALUE_STATS_BACKUP_UNKNOWN)
+        {
+            data = 0;
+            data |= (MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE & MEWSTATS_COOKIE_VALUE_THROW_SPEED_MASK) << _MEWSTATS_THROW_SPEED_SHIFT;
+            data |= (MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE & MEWSTATS_COOKIE_VALUE_THROW_ANGLE_MASK) << _MEWSTATS_THROW_ANGLE_SHIFT;
+            data |= (MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT & MEWSTATS_COOKIE_VALUE_THROW_TIME_MASK) << _MEWSTATS_THROW_TIME_SHIFT;
+            data |= (MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE & MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_MASK) << _MEWSTATS_THROW_DEVIATION_SHIFT;
+            data |= (MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE & MEWSTATS_COOKIE_VALUE_THROW_STATUS_MASK) << _MEWSTATS_THROW_STATUS_SHIFT;
+            data |= (MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE & MEWSTATS_COOKIE_VALUE_SKY_STATS_MASK) << _MEWSTATS_SKY_STATS_SHIFT;
+            data |= (MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE & MEWSTATS_COOKIE_VALUE_MLS_STATS_MASK) << _MEWSTATS_MLS_STATS_SHIFT;
+        }
 
-    //     g_iThrowTime[client] = MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
-    //     g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+        // Turning Things On
+        g_iThrowSpeed[client] = (data >> _MEWSTATS_THROW_SPEED_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_SPEED_MASK;
+        g_iThrowAngle[client] = (data >> _MEWSTATS_THROW_ANGLE_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_ANGLE_MASK;
+        g_iThrowTime[client] = (data >> _MEWSTATS_THROW_TIME_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_TIME_MASK;
+        g_iThrowDeviation[client] = (data >> _MEWSTATS_THROW_DEVIATION_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_MASK;
+        g_iThrowStatus[client] = (data >> _MEWSTATS_THROW_STATUS_SHIFT) & MEWSTATS_COOKIE_VALUE_THROW_STATUS_MASK;
+        g_iSkyStats[client] = (data >> _MEWSTATS_SKY_STATS_SHIFT) & MEWSTATS_COOKIE_VALUE_SKY_STATS_MASK;
+        g_iMlsStats[client] = (data >> _MEWSTATS_MLS_STATS_SHIFT) & MEWSTATS_COOKIE_VALUE_MLS_STATS_MASK;
 
-    //     g_iThrowDeviation[client] = MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
-    //     g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+        g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
+        g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
+        g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
+        g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
+        g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+        g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
+        g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
 
-    //     g_iThrowStatus[client] = MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
-    //     g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
+        char szMessage[256] = "";
+        FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
+        if (szMessage[0] != '\0')
+        {
+            Mewstats_SayText2(client, true, szMessage);
+        }
+    }
 
-    //     g_iSkyStats[client] = MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
-    //     g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
-
-    //     g_iMlsStats[client] = MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
-    //     g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
-
-    //     char szMessage[256] = "";
-    //     FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s disabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-    //     if (szMessage[0] != '\0')
-    //     {
-    //         Mewstats_SayText2(client, true, szMessage);
-    //     }
-    // }
-    // else
-    // {
-    //     // Getting Snapshot
-    //     int bitflags = g_iLastBitflags[client];
-    //     if (bitflags == MEWSTATS_COOKIE_VALUE_LAST_BITFLAGS_UNKNOWN)
-    //     {
-    //         bitflags = 0;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT;
-    //         bitflags |= 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT;
-    //     }
-
-    //     // Turning Things On
-    //     g_iThrowSpeed[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_SPEED_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE : MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE;
-    //     g_ckThrowSpeed.SetInt(client, g_iThrowSpeed[client]);
-
-    //     g_iThrowAngle[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_ANGLE_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_ANGLE_TRUE : MEWSTATS_COOKIE_VALUE_THROW_ANGLE_FALSE;
-    //     g_ckThrowAngle.SetInt(client, g_iThrowAngle[client]);
-
-    //     g_iThrowTime[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_TIME_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_TIME_TRUE : MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE;
-    //     g_ckThrowTime.SetInt(client, g_iThrowTime[client]);
-
-    //     g_iThrowDeviation[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_TRUE : MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_FALSE;
-    //     g_ckThrowDeviation.SetInt(client, g_iThrowDeviation[client]);
-
-    //     g_iThrowStatus[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_THROW_STATUS_BIT) ? MEWSTATS_COOKIE_VALUE_THROW_STATUS_TRUE : MEWSTATS_COOKIE_VALUE_THROW_STATUS_FALSE;
-    //     g_ckThrowStatus.SetInt(client, g_iThrowStatus[client]);
-
-    //     g_iSkyStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_SKY_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_SKY_STATS_TRUE : MEWSTATS_COOKIE_VALUE_SKY_STATS_FALSE;
-    //     g_ckSkyStats.SetInt(client, g_iSkyStats[client]);
-
-    //     g_iMlsStats[client] = Mewstats_IsFlag(bitflags, 1 << MEWSTATS_COOKIE_VALUE_MLS_STATS_BIT) ? MEWSTATS_COOKIE_VALUE_MLS_STATS_TRUE : MEWSTATS_COOKIE_VALUE_MLS_STATS_FALSE;
-    //     g_ckMlsStats.SetInt(client, g_iMlsStats[client]);
-
-    //     char szMessage[256] = "";
-    //     FormatEx(szMessage, sizeof(szMessage), "%s%sYou have%s enabled%s all boost stats", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, MEWSTATS_CHAT_COLOR_WHITE);
-    //     if (szMessage[0] != '\0')
-    //     {
-    //         Mewstats_SayText2(client, true, szMessage);
-    //     }
-    // }
-
-    // return Plugin_Handled;
+    return Plugin_Handled;
 }
+
+static Action Command_Snapshot(int client, int argc)
+{
+    if (!Mewstats_IsClientInGame(client))
+    {
+        return Plugin_Handled;
+    }
+
+    int snapshot = Mewstats_GetSnapshot(client);
+    int backup = g_iStatsBackup[client];
+
+    char szMessage[256] = "";
+    FormatEx(szMessage, sizeof(szMessage), "%s%sYour current & stored snapshots [%s%i%s;%s %i%s]", MEWSTATS_CHAT_PREFIX, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, snapshot, MEWSTATS_CHAT_COLOR_WHITE, MEWSTATS_CHAT_COLOR_COPPER, backup, MEWSTATS_CHAT_COLOR_WHITE);
+    if (szMessage[0] != '\0')
+    {
+        Mewstats_SayText2(client, true, szMessage);
+    }
+
+    return Plugin_Handled;
+}
+
+static int Mewstats_GetSnapshot(int client)
+{
+    int data = 0;
+    data |= (g_iThrowSpeed[client] & MEWSTATS_COOKIE_VALUE_THROW_SPEED_MASK) << _MEWSTATS_THROW_SPEED_SHIFT;
+    data |= (g_iThrowAngle[client] & MEWSTATS_COOKIE_VALUE_THROW_ANGLE_MASK) << _MEWSTATS_THROW_ANGLE_SHIFT;
+    data |= (g_iThrowTime[client] & MEWSTATS_COOKIE_VALUE_THROW_TIME_MASK) << _MEWSTATS_THROW_TIME_SHIFT;
+    data |= (g_iThrowDeviation[client] & MEWSTATS_COOKIE_VALUE_THROW_DEVIATION_MASK) << _MEWSTATS_THROW_DEVIATION_SHIFT;
+    data |= (g_iThrowStatus[client] & MEWSTATS_COOKIE_VALUE_THROW_STATUS_MASK) << _MEWSTATS_THROW_STATUS_SHIFT;
+    data |= (g_iSkyStats[client] & MEWSTATS_COOKIE_VALUE_SKY_STATS_MASK) << _MEWSTATS_SKY_STATS_SHIFT;
+    data |= (g_iMlsStats[client] & MEWSTATS_COOKIE_VALUE_MLS_STATS_MASK) << _MEWSTATS_MLS_STATS_SHIFT;
+    return data;
+}
+
+#undef _MEWSTATS_THROW_SPEED_SHIFT
+#undef _MEWSTATS_THROW_ANGLE_SHIFT
+#undef _MEWSTATS_THROW_TIME_SHIFT
+#undef _MEWSTATS_THROW_DEVIATION_SHIFT
+#undef _MEWSTATS_THROW_STATUS_SHIFT
+#undef _MEWSTATS_SKY_STATS_SHIFT
+#undef _MEWSTATS_MLS_STATS_SHIFT
 
 static Action Command_Import(int client, int argc)
 {
@@ -2645,6 +2682,7 @@ static void Mewstats_CreateCommands()
 {
     RegConsoleCmd("sm_bs", Command_Stats);
     RegConsoleCmd("sm_bsall", Command_All);
+    RegConsoleCmd("sm_bssnap", Command_Snapshot);
     RegConsoleCmd("sm_bsimport", Command_Import);
     RegConsoleCmd("sm_bsexport", Command_Export);
     RegConsoleCmd("sm_bspref", Command_Config);
