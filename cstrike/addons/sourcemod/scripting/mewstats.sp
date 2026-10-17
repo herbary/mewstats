@@ -153,6 +153,7 @@ enum struct ThrowInfo
 }
 
 ThrowInfo g_ThrowInfo[MAXPLAYERS + 1];
+int g_iRefLastFlashbang;
 
 int g_iSkyJumpTick[MAXPLAYERS + 1];
 int g_iFlashHitTick[MAXPLAYERS + 1];
@@ -215,6 +216,11 @@ public void OnPluginStart()
 
 public void OnClientPutInServer(int client)
 {
+    if (!Mewstats_IsPlayer(client))
+    {
+        return;
+    }
+
     g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
     g_ThrowInfo[client].m_fSpeed = 0.0;
     g_ThrowInfo[client].m_fAngle = 0.0;
@@ -232,6 +238,7 @@ public void OnClientPutInServer(int client)
     Mewstats_InitStateVars(client);
 
     SDKHook(client, SDKHook_StartTouch, Hook_StartTouch);
+    SDKHook(client, SDKHook_PostThinkPost, Hook_PostThinkPost);
 }
 
 public void OnClientCookiesCached(int client)
@@ -241,10 +248,12 @@ public void OnClientCookiesCached(int client)
 
 public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2])
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Continue;
     }
+
+    g_iRefLastFlashbang = INVALID_ENT_REFERENCE;
 
     MoveType movetype = GetEntityMoveType(client);
     if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
@@ -333,7 +342,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
 static Action Hook_StartTouch(int client, int entity)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Continue;
     }
@@ -358,11 +367,11 @@ static Action Hook_StartTouch(int client, int entity)
 
 static void Mewstats_ProcessSky(int client, int entity)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
-    if (!Mewstats_IsClientInGame(entity))
+    if (!Mewstats_IsPlayerInGame(entity))
     {
         return;
     }
@@ -447,7 +456,7 @@ static void Mewstats_ProcessSky(int client, int entity)
 
 static void Mewstats_PrintSkyStats(int client, float strength)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -535,7 +544,7 @@ static void Mewstats_PrintSkyStats(int client, float strength)
 
 static void Mewstats_ProcessMls(int client, int entity)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -602,11 +611,11 @@ static void Mewstats_ProcessMls(int client, int entity)
 
 static void Mewstats_PrintMlsStats(int client, int target)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
-    if (!Mewstats_IsClientInGame(target))
+    if (!Mewstats_IsPlayerInGame(target))
     {
         return;
     }
@@ -761,23 +770,25 @@ public void OnEntityCreated(int entity, const char[] szClassname)
     {
         return;
     }
-
-    SDKHook(entity, SDKHook_SpawnPost, Hook_SpawnPost);
-}
-
-static void Hook_SpawnPost(int entity)
-{
-    if (!IsValidEntity(entity))
+    if (g_iRefLastFlashbang != INVALID_ENT_REFERENCE)
     {
         return;
     }
 
-    RequestFrame(Frame_FlashbangSpawn, EntIndexToEntRef(entity));
+    g_iRefLastFlashbang = EntIndexToEntRef(entity);
 }
 
-static void Frame_FlashbangSpawn(int ref)
+static void Hook_PostThinkPost(int client)
 {
-    int entity = EntRefToEntIndex(ref);
+    if (!Mewstats_IsPlayerInGame(client))
+    {
+        return;
+    }
+    if (g_iRefLastFlashbang == INVALID_ENT_REFERENCE)
+    {
+        return;
+    }
+    int entity = EntRefToEntIndex(g_iRefLastFlashbang);
     if (entity == INVALID_ENT_REFERENCE)
     {
         return;
@@ -787,32 +798,26 @@ static void Frame_FlashbangSpawn(int ref)
         return;
     }
 
-    int thrower = GetEntPropEnt(entity, Prop_Data, MEWSTATS_PROP_M_HTHROWER);
-    if (!Mewstats_IsAlivePlayerInGame(thrower))
-    {
-        return;
-    }
-
-    int flags = GetEntProp(thrower, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
-    MoveType movetype = GetEntityMoveType(thrower);
+    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
+    MoveType movetype = GetEntityMoveType(client);
     if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
     {
-        g_ThrowInfo[thrower].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+        g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
     }
-    g_ThrowInfo[thrower].m_bDucked = Mewstats_IsFlag(flags, FL_DUCKING);
+    g_ThrowInfo[client].m_bDucked = Mewstats_IsFlag(flags, FL_DUCKING);
 
     float velocity[3];
-    GetEntPropVector(thrower, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
+    GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
 
     velocity[2] = 0.0;
-    g_ThrowInfo[thrower].m_fSpeed = GetVectorLength(velocity, false) + 0.0001;
+    g_ThrowInfo[client].m_fSpeed = GetVectorLength(velocity, false) + 0.0001;
 
     float angles[3];
-    GetClientEyeAngles(thrower, angles);
+    GetClientEyeAngles(client, angles);
 
-    g_ThrowInfo[thrower].m_fAngle = -angles[0];
+    g_ThrowInfo[client].m_fAngle = -angles[0];
 
-    int partner = Mewstats_GetPartner(thrower);
+    int partner = Mewstats_GetPartner(client);
     if (partner != _MEWSTATS_PARTNER_UNKNOWN)
     {
         float flashbangVelocity[3];
@@ -830,29 +835,29 @@ static void Frame_FlashbangSpawn(int ref)
         partnerDirection[1] = partnerPosition[1] - flashbangPosition[1];
         partnerDirection[2] = 0.0;
 
-        g_ThrowInfo[thrower].m_fDeviation = Mewstats_RelativeDeviation(flashbangVelocity, partnerDirection);
+        g_ThrowInfo[client].m_fDeviation = Mewstats_RelativeDeviation(flashbangVelocity, partnerDirection);
     }
     else
     {
-        g_ThrowInfo[thrower].m_fDeviation = _MEWSTATS_DEVIATION_UNKNOWN;
+        g_ThrowInfo[client].m_fDeviation = _MEWSTATS_DEVIATION_UNKNOWN;
     }
 
-    Mewstats_PrintThrowStatsEx(thrower, false);
-    if (g_ThrowInfo[thrower].m_iTicks != _MEWSTATS_TICK_UNKNOWN && g_ThrowInfo[thrower].m_bJumped)
+    Mewstats_PrintThrowStatsEx(client, false);
+    if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN && g_ThrowInfo[client].m_bJumped)
     {
-        Mewstats_PrintThrowStatsEx(thrower, true);
-        g_ThrowInfo[thrower].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+        Mewstats_PrintThrowStatsEx(client, true);
+        g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
     }
     else
     {
-        g_ThrowInfo[thrower].m_iTicks = 0;
-        g_ThrowInfo[thrower].m_bJumped = false;
+        g_ThrowInfo[client].m_iTicks = 0;
+        g_ThrowInfo[client].m_bJumped = false;
     }
 }
 
 static void Mewstats_PrintThrowStatsEx(int thrower, bool bTime)
 {
-    if (!Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -932,7 +937,7 @@ static void Mewstats_PrintThrowStatsEx(int thrower, bool bTime)
 
 static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower)
 {
-    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(client) || !Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -1024,7 +1029,7 @@ static void Mewstats_PrintThrowStats(bool bPartner, int client, int thrower)
 
 static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int size)
 {
-    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(client) || !Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -1139,7 +1144,7 @@ static void Mewstats_FormatThrowSpeed(int client, int thrower, char[] buff, int 
 
 static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int size)
 {
-    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(client) || !Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -1198,7 +1203,7 @@ static void Mewstats_FormatThrowAngle(int client, int thrower, char[] buff, int 
 
 static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int size)
 {
-    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(client) || !Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -1306,7 +1311,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
 
 static void Mewstats_FormatThrowDeviation(int client, int thrower, char[] buff, int size)
 {
-    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(client) || !Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -1369,7 +1374,7 @@ static void Mewstats_FormatThrowDeviation(int client, int thrower, char[] buff, 
 
 static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int size)
 {
-    if (!Mewstats_IsClientInGame(client) || !Mewstats_IsClientInGame(thrower))
+    if (!Mewstats_IsPlayerInGame(client) || !Mewstats_IsPlayerInGame(thrower))
     {
         return;
     }
@@ -1421,7 +1426,7 @@ static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
     }
 
     int client = GetClientOfUserId(event.GetInt(MEWSTATS_EVENT_VAR_USERID));
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -1439,7 +1444,7 @@ static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
 
 static Action Command_Stats(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Handled;
     }
@@ -1450,7 +1455,7 @@ static Action Command_Stats(int client, int argc)
 
 static void Menu_Stats(int client, int position)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -1558,7 +1563,7 @@ static void MenuHandler_Stats(Menu menu, MenuAction action, int client, int inde
     {
         return;
     }
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -1752,7 +1757,7 @@ static void MenuSelect_ChatSound(int client)
 
 static void Mewstats_CycleCookie(int client, Cookie cookie, int storage[MAXPLAYERS + 1], int limit)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -1771,7 +1776,7 @@ static void Mewstats_CycleCookie(int client, Cookie cookie, int storage[MAXPLAYE
 
 static Action Command_All(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Handled;
     }
@@ -1853,7 +1858,7 @@ static Action Command_All(int client, int argc)
 
 static Action Command_Snapshot(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Handled;
     }
@@ -1894,7 +1899,7 @@ static int Mewstats_GetSnapshot(int client)
 
 static Action Command_Import(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client) || argc < 1)
+    if (!Mewstats_IsPlayerInGame(client) || argc < 1)
     {
         return Plugin_Handled;
     }
@@ -1946,7 +1951,7 @@ static Action Command_Import(int client, int argc)
 
 static Action Command_Export(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Handled;
     }
@@ -1977,7 +1982,7 @@ static Action Command_Export(int client, int argc)
 
 static Action Command_Config(int client, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Handled;
     }
@@ -1988,7 +1993,7 @@ static Action Command_Config(int client, int argc)
 
 static void Menu_Config(int client, int position)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -2109,7 +2114,7 @@ static void MenuHandler_Config(Menu menu, MenuAction action, int client, int ind
     {
         return;
     }
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return;
     }
@@ -2449,7 +2454,7 @@ static void MenuSelect_CancelChatInput(int client)
 
 static Action Listener_AwaitInput(int client, const char[] command, int argc)
 {
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return Plugin_Continue;
     }
@@ -2667,6 +2672,8 @@ static void Mewstats_InitStateVars(int client)
 
 static void Mewstats_CreateGlobals()
 {
+    g_iRefLastFlashbang = INVALID_ENT_REFERENCE;
+
     // Throw Speed
     g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_FALSE] = MEWSTATS_MENU_ITEM_FALSE;
     g_szThrowSpeedModes[MEWSTATS_COOKIE_VALUE_THROW_SPEED_TRUE] = MEWSTATS_MENU_ITEM_TRUE;
@@ -2868,7 +2875,7 @@ static bool Mewstats_ImportSettingsRaw(int client, char[] buff, int size)
     {
         return false;
     }
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return false;
     }
@@ -2951,7 +2958,7 @@ static int Mewstats_ExportSettingsRaw(int client, char[] buff, int size)
         buff[0] = '\0';
         return 0;
     }
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         buff[0] = '\0';
         return 0;
@@ -3023,7 +3030,7 @@ static bool Mewstats_ImportThemeRaw(int client, char[] buff, int size)
     {
         return false;
     }
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         return false;
     }
@@ -3104,7 +3111,7 @@ static int Mewstats_ExportThemeRaw(int client, char[] buff, int size)
         buff[0] = '\0';
         return 0;
     }
-    if (!Mewstats_IsClientInGame(client))
+    if (!Mewstats_IsPlayerInGame(client))
     {
         buff[0] = '\0';
         return 0;
