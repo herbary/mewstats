@@ -249,7 +249,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     MoveType movetype = GetEntityMoveType(client);
     if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
     {
-        if (movetype != MOVETYPE_WALK || g_ThrowInfo[client].m_iTicks > _MEWSTATS_THROW_TIME_TICKS && !g_ThrowInfo[client].m_bJumped)
+        if ((movetype != MOVETYPE_WALK || g_ThrowInfo[client].m_iTicks > _MEWSTATS_THROW_TIME_TICKS) && !g_ThrowInfo[client].m_bJumped)
         {
             g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
             Mewstats_PrintThrowStatsEx(client, true);
