@@ -147,6 +147,7 @@ enum struct ThrowInfo
     int m_iFlags;
     MoveType m_iMoveType;
     int m_iTicks;
+    int m_iInstTicks;
     float m_fSpeed;
     float m_fAngle;
     float m_fDeviation;
@@ -226,6 +227,7 @@ public void OnClientPutInServer(int client)
     g_ThrowInfo[client].m_iFlags = 0;
     g_ThrowInfo[client].m_iMoveType = MOVETYPE_NONE;
     g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+    g_ThrowInfo[client].m_iInstTicks = _MEWSTATS_TICK_UNKNOWN;
     g_ThrowInfo[client].m_fSpeed = 0.0;
     g_ThrowInfo[client].m_fAngle = 0.0;
     g_ThrowInfo[client].m_fDeviation = _MEWSTATS_DEVIATION_UNKNOWN;
@@ -259,7 +261,19 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
     g_iRefLastFlashbang = INVALID_ENT_REFERENCE;
 
+    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     MoveType movetype = GetEntityMoveType(client);
+    if (g_ThrowInfo[client].m_iInstTicks != _MEWSTATS_TICK_UNKNOWN)
+    {
+        if (movetype != MOVETYPE_WALK || Mewstats_IsFlag(flags, FL_ONGROUND))
+        {
+            g_ThrowInfo[client].m_iInstTicks = _MEWSTATS_TICK_UNKNOWN;
+        }
+        else
+        {
+            ++g_ThrowInfo[client].m_iInstTicks;
+        }
+    }
     if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
     {
         if (movetype != MOVETYPE_WALK || g_ThrowInfo[client].m_iTicks > _MEWSTATS_THROW_TIME_TICKS)
@@ -310,7 +324,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
     }
 
-    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     if (g_iSkyJumpTick[client] == _MEWSTATS_TICK_UNKNOWN && g_iFlashHitTick[client] == _MEWSTATS_TICK_UNKNOWN && Mewstats_IsFlag(flags, FL_ONGROUND))
     {
         Mewstats_PrintMlsStats(client, client);
@@ -807,6 +820,10 @@ static void Hook_PostThinkPost(int client)
 
     g_ThrowInfo[client].m_iFlags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     g_ThrowInfo[client].m_iMoveType = GetEntityMoveType(client);
+    if (Mewstats_IsFlag(g_ThrowInfo[client].m_iFlags, FL_ONGROUND) || g_ThrowInfo[client].m_iMoveType != MOVETYPE_WALK)
+    {
+        g_ThrowInfo[client].m_iInstTicks = _MEWSTATS_TICK_UNKNOWN;
+    }
     g_ThrowInfo[client].m_bDucked = Mewstats_IsFlag(g_ThrowInfo[client].m_iFlags, FL_DUCKING);
 
     float velocity[3];
@@ -1214,10 +1231,14 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     {
         return;
     }
-    if (g_ThrowInfo[thrower].m_iTicks == _MEWSTATS_TICK_UNKNOWN)
+    if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && g_ThrowInfo[thrower].m_iTicks == _MEWSTATS_TICK_UNKNOWN)
     {
         return;
     }
+    // if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT && g_ThrowInfo[thrower].m_iInstTicks == _MEWSTATS_TICK_UNKNOWN)
+    // {
+    //     return;
+    // }
 
     char szPhrase[MEWSTATS_MESSAGE_KEY_SIZE] = "";
     if (g_iShortNames[client] == MEWSTATS_COOKIE_VALUE_SHORT_NAMES_TRUE)
@@ -1234,12 +1255,22 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     float time = 0.0;
-    if (g_ThrowInfo[thrower].m_iTicks > 0)
+    if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT)
     {
-        time = g_ThrowInfo[thrower].m_iTicks * GetTickInterval() + 0.0001;
-        if (g_ThrowInfo[thrower].m_bJumped)
+        if (g_ThrowInfo[thrower].m_iInstTicks > 0)
         {
-            time = -time;
+            time = g_ThrowInfo[thrower].m_iInstTicks * GetTickInterval() + 0.0001;
+        }
+    }
+    else
+    {
+        if (g_ThrowInfo[thrower].m_iTicks > 0)
+        {
+            time = g_ThrowInfo[thrower].m_iTicks * GetTickInterval() + 0.0001;
+            if (g_ThrowInfo[thrower].m_bJumped)
+            {
+                time = -time;
+            }
         }
     }
 
@@ -1261,15 +1292,22 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_TRUE)
     {
         int color[3];
-        if (time > 0)
+        if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT)
         {
-            color[0] = 255;
-            color[1] = 0;
-            color[2] = 0;
+            Mewstats_TransColor(100.0 - time / 0.10 * 100.0, 50.0, color);
         }
         else
         {
-            Mewstats_TransColor(100.0 + time / 0.06 * 100.0, 42.0, color);
+            if (time > 0)
+            {
+                color[0] = 255;
+                color[1] = 0;
+                color[2] = 0;
+            }
+            else
+            {
+                Mewstats_TransColor(100.0 + time / 0.06 * 100.0, 42.0, color);
+            }
         }
 
         FormatEx(szAccentColor, sizeof(szAccentColor), "\x07%02X%02X%02X", color[0], color[1], color[2]);
@@ -1297,7 +1335,7 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
     else
     {
-        FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(-time, 2));
+        FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(time, 2));
     }
     if (szTime[0] == '\0')
     {
@@ -1432,6 +1470,8 @@ static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
     {
         return;
     }
+
+    g_ThrowInfo[client].m_iInstTicks = 0;
 
     if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN && !g_ThrowInfo[client].m_bJumped)
     {
