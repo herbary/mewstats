@@ -260,7 +260,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
     // OnPlayerRunCmd runs before StartTouch
     //  meaning at tick == 2 we had a time of 1 tick
-    //  between current moment and the moment were
+    //  between current moment and the moment when
     //  sky or flash hit happened, so we're safe to release MLS
     if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
