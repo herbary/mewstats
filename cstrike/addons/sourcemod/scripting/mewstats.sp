@@ -144,6 +144,8 @@ char g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT][MEWSTATS_MENU_IT
 
 enum struct ThrowInfo
 {
+    int m_iFlags;
+    MoveType m_iMoveType;
     int m_iTicks;
     float m_fSpeed;
     float m_fAngle;
@@ -221,6 +223,8 @@ public void OnClientPutInServer(int client)
         return;
     }
 
+    g_ThrowInfo[client].m_iFlags = 0;
+    g_ThrowInfo[client].m_iMoveType = MOVETYPE_NONE;
     g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
     g_ThrowInfo[client].m_fSpeed = 0.0;
     g_ThrowInfo[client].m_fAngle = 0.0;
@@ -258,10 +262,13 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
     MoveType movetype = GetEntityMoveType(client);
     if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
     {
-        if ((movetype != MOVETYPE_WALK || g_ThrowInfo[client].m_iTicks > _MEWSTATS_THROW_TIME_TICKS) && !g_ThrowInfo[client].m_bJumped)
+        if (movetype != MOVETYPE_WALK || g_ThrowInfo[client].m_iTicks > _MEWSTATS_THROW_TIME_TICKS)
         {
             g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
-            Mewstats_PrintThrowStatsEx(client, true);
+            if (!g_ThrowInfo[client].m_bJumped)
+            {
+                Mewstats_PrintThrowStatsEx(client, true);
+            }
         }
         else
         {
@@ -798,13 +805,9 @@ static void Hook_PostThinkPost(int client)
         return;
     }
 
-    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
-    MoveType movetype = GetEntityMoveType(client);
-    if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
-    {
-        g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
-    }
-    g_ThrowInfo[client].m_bDucked = Mewstats_IsFlag(flags, FL_DUCKING);
+    g_ThrowInfo[client].m_iFlags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
+    g_ThrowInfo[client].m_iMoveType = GetEntityMoveType(client);
+    g_ThrowInfo[client].m_bDucked = Mewstats_IsFlag(g_ThrowInfo[client].m_iFlags, FL_DUCKING);
 
     float velocity[3];
     GetEntPropVector(client, Prop_Data, MEWSTATS_PROP_M_VECABSVELOCITY, velocity);
@@ -1378,6 +1381,10 @@ static void Mewstats_FormatThrowStatus(int client, int thrower, char[] buff, int
         return;
     }
     if (g_ThrowInfo[thrower].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
+    {
+        return;
+    }
+    if (!Mewstats_IsFlag(g_ThrowInfo[thrower].m_iFlags, FL_ONGROUND) && g_ThrowInfo[thrower].m_iMoveType == MOVETYPE_WALK)
     {
         return;
     }
