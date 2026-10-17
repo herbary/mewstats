@@ -260,14 +260,16 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
     if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
-        if (tickcount - g_iSkyJumpTick[client] >= 3)
+        ++g_iSkyJumpTick[client];
+        if (g_iSkyJumpTick[client] >= 2)
         {
             g_iSkyJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
         }
     }
     if (g_iFlashHitTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
-        if (tickcount - g_iFlashHitTick[client] >= 3)
+        ++g_iFlashHitTick[client];
+        if (g_iFlashHitTick[client] >= 2)
         {
             g_iFlashHitTick[client] = _MEWSTATS_TICK_UNKNOWN;
 
@@ -407,7 +409,7 @@ static void Mewstats_ProcessSky(int client, int entity)
         return;
     }
 
-    g_iSkyJumpTick[client] = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_NTICKBASE);
+    g_iSkyJumpTick[client] = 0;
 
     Mewstats_PrintSkyStats(client, strength);
     for (int klient = 1; klient <= MaxClients; ++klient)
@@ -558,7 +560,7 @@ static void Mewstats_ProcessMls(int client, int entity)
         return;
     }
 
-    g_iFlashHitTick[client] = GetEntProp(client, Prop_Send, MEWSTATS_PROP_M_NTICKBASE);
+    g_iFlashHitTick[client] = 0;
 
     int thrower = GetEntPropEnt(entity, Prop_Data, MEWSTATS_PROP_M_HTHROWER);
     g_iMlsLastPartner[client] = thrower;
