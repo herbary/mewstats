@@ -1230,15 +1230,10 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
         return;
     }
 
-    int tick = g_ThrowInfo[thrower].m_iTicks;
-    if (g_ThrowInfo[thrower].m_bJumped)
-    {
-        --tick;
-    }
     float time = 0.0;
-    if (tick > 0)
+    if (g_ThrowInfo[thrower].m_iTicks > 0)
     {
-        time = tick * GetTickInterval() + 0.0001;
+        time = g_ThrowInfo[thrower].m_iTicks * GetTickInterval() + 0.0001;
         if (g_ThrowInfo[thrower].m_bJumped)
         {
             time = -time;
