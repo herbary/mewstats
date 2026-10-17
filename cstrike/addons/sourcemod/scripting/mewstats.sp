@@ -44,7 +44,7 @@
 
 #define _MEWSTATS_PARTNER_UNKNOWN -1
 #define _MEWSTATS_TICK_UNKNOWN -1
-#define _MEWSTATS_THROW_TIME_TICKS 20
+#define _MEWSTATS_THROW_TIME_TICKS 15
 #define _MEWSTATS_DEVIATION_UNKNOWN 1337.0
 #define _MEWSTATS_MLS_STORE_LIMIT 12
 
@@ -145,7 +145,6 @@ char g_szChatSoundModes[MEWSTATS_COOKIE_VALUE_CHAT_SOUND_COUNT][MEWSTATS_MENU_IT
 enum struct ThrowInfo
 {
     int m_iTicks;
-    float m_fTime;
     float m_fSpeed;
     float m_fAngle;
     float m_fDeviation;
@@ -247,15 +246,18 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         return Plugin_Continue;
     }
 
-    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     MoveType movetype = GetEntityMoveType(client);
-    if (Mewstats_IsFlag(flags, FL_ONGROUND) || movetype != MOVETYPE_WALK)
-    {
-        g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
-    }
     if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
     {
-        ++g_ThrowInfo[client].m_iTicks;
+        if (movetype != MOVETYPE_WALK || g_ThrowInfo[client].m_iTicks > _MEWSTATS_THROW_TIME_TICKS && !g_ThrowInfo[client].m_bJumped)
+        {
+            g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+            Mewstats_PrintThrowStatsEx(client, true);
+        }
+        else
+        {
+            ++g_ThrowInfo[client].m_iTicks;
+        }
     }
 
     // OnPlayerRunCmd runs before StartTouch
@@ -292,6 +294,7 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         }
     }
 
+    int flags = GetEntProp(client, Prop_Data, MEWSTATS_PROP_M_FFLAGS);
     if (g_iSkyJumpTick[client] == _MEWSTATS_TICK_UNKNOWN && g_iFlashHitTick[client] == _MEWSTATS_TICK_UNKNOWN && Mewstats_IsFlag(flags, FL_ONGROUND))
     {
         Mewstats_PrintMlsStats(client, client);
@@ -809,21 +812,6 @@ static void Frame_FlashbangSpawn(int ref)
 
     g_ThrowInfo[thrower].m_fAngle = -angles[0];
 
-    float time = 0.0;
-    if (g_ThrowInfo[thrower].m_iTicks != _MEWSTATS_TICK_UNKNOWN)
-    {
-        time = (g_ThrowInfo[thrower].m_iTicks - 1) * GetTickInterval();
-        if (time < 0.0)
-        {
-            time = 0.0;
-        }
-        else
-        {
-            time += 0.0001;
-        }
-    }
-    g_ThrowInfo[thrower].m_fTime = time;
-
     int partner = Mewstats_GetPartner(thrower);
     if (partner != _MEWSTATS_PARTNER_UNKNOWN)
     {
@@ -849,17 +837,31 @@ static void Frame_FlashbangSpawn(int ref)
         g_ThrowInfo[thrower].m_fDeviation = _MEWSTATS_DEVIATION_UNKNOWN;
     }
 
-    Mewstats_PrintThrowStatsEx(thrower);
+    Mewstats_PrintThrowStatsEx(thrower, false);
+    if (g_ThrowInfo[thrower].m_iTicks != _MEWSTATS_TICK_UNKNOWN && g_ThrowInfo[thrower].m_bJumped)
+    {
+        Mewstats_PrintThrowStatsEx(thrower, true);
+        g_ThrowInfo[thrower].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+    }
+    else
+    {
+        g_ThrowInfo[thrower].m_iTicks = 0;
+        g_ThrowInfo[thrower].m_bJumped = false;
+    }
 }
 
-static void Mewstats_PrintThrowStatsEx(int thrower)
+static void Mewstats_PrintThrowStatsEx(int thrower, bool bTime)
 {
     if (!Mewstats_IsClientInGame(thrower))
     {
         return;
     }
 
-    Mewstats_PrintThrowStats(false, thrower, thrower);
+    if (g_iThrowTime[thrower] == MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && bTime || g_iThrowTime[thrower] != MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && !bTime)
+    {
+        Mewstats_PrintThrowStats(false, thrower, thrower);
+    }
+
     for (int client = 1; client <= MaxClients; ++client)
     {
         if (!Mewstats_IsPlayerInGame(client))
@@ -883,13 +885,16 @@ static void Mewstats_PrintThrowStatsEx(int thrower)
             continue;
         }
 
-        Mewstats_PrintThrowStats(false, client, thrower);
+        if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && bTime || g_iThrowTime[client] != MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && !bTime)
+        {
+            Mewstats_PrintThrowStats(false, client, thrower);
+        }
     }
 
     int partner = Mewstats_GetPartner(thrower);
     if (partner != _MEWSTATS_PARTNER_UNKNOWN)
     {
-        if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+        if (g_iPartnerStats[partner] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE && (g_iThrowTime[partner] == MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && bTime || g_iThrowTime[partner] != MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && !bTime))
         {
             Mewstats_PrintThrowStats(true, partner, thrower);
         }
@@ -917,7 +922,7 @@ static void Mewstats_PrintThrowStatsEx(int thrower)
                 continue;
             }
 
-            if (g_iPartnerStats[client] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE)
+            if (g_iPartnerStats[client] == MEWSTATS_COOKIE_VALUE_PARTNER_STATS_TRUE && (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && bTime || g_iThrowTime[client] != MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED && !bTime))
             {
                 Mewstats_PrintThrowStats(true, client, thrower);
             }
@@ -1197,7 +1202,11 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     {
         return;
     }
-    if (g_iThrowTime[client] != MEWSTATS_COOKIE_VALUE_THROW_TIME_INSTANT)
+    if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_FALSE)
+    {
+        return;
+    }
+    if (g_ThrowInfo[thrower].m_iTicks == _MEWSTATS_TICK_UNKNOWN)
     {
         return;
     }
@@ -1214,6 +1223,21 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     if (szPhrase[0] == '\0')
     {
         return;
+    }
+
+    int tick = g_ThrowInfo[thrower].m_iTicks;
+    if (g_ThrowInfo[thrower].m_bJumped)
+    {
+        --tick;
+    }
+    float time = 0.0;
+    if (tick > 0)
+    {
+        time = tick * GetTickInterval() + 0.0001;
+        if (g_ThrowInfo[thrower].m_bJumped)
+        {
+            time = -time;
+        }
     }
 
     char szBaseColor[MEWSTATS_THEME_COLOR_SIZE] = "";
@@ -1234,7 +1258,16 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     if (g_iColorValues[client] == MEWSTATS_COOKIE_VALUE_COLOR_VALUES_TRUE)
     {
         int color[3];
-        Mewstats_TransColor(100.0 - g_ThrowInfo[thrower].m_fTime / 0.06 * 100.0, 42.0, color);
+        if (time > 0)
+        {
+            color[0] = 255;
+            color[1] = 0;
+            color[2] = 0;
+        }
+        else
+        {
+            Mewstats_TransColor(100.0 + time / 0.06 * 100.0, 42.0, color);
+        }
 
         FormatEx(szAccentColor, sizeof(szAccentColor), "\x07%02X%02X%02X", color[0], color[1], color[2]);
     }
@@ -1255,7 +1288,14 @@ static void Mewstats_FormatThrowTime(int client, int thrower, char[] buff, int s
     }
 
     char szTime[32] = "";
-    FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(g_ThrowInfo[thrower].m_fTime, 2));
+    if (g_iThrowTime[client] == MEWSTATS_COOKIE_VALUE_THROW_TIME_DELAYED)
+    {
+        FormatEx(szTime, sizeof(szTime), "%s%.2f", time > 0 ? "+" : "", Mewstats_TruncateFloat(time, 2));
+    }
+    else
+    {
+        FormatEx(szTime, sizeof(szTime), "%.2f", Mewstats_TruncateFloat(-time, 2));
+    }
     if (szTime[0] == '\0')
     {
         return;
@@ -1386,7 +1426,15 @@ static void Event_PlayerJump(Event event, const char[] name, bool bNoBroadcast)
         return;
     }
 
+    if (g_ThrowInfo[client].m_iTicks != _MEWSTATS_TICK_UNKNOWN && !g_ThrowInfo[client].m_bJumped)
+    {
+        Mewstats_PrintThrowStatsEx(client, true);
+        g_ThrowInfo[client].m_iTicks = _MEWSTATS_TICK_UNKNOWN;
+        return;
+    }
+
     g_ThrowInfo[client].m_iTicks = 0;
+    g_ThrowInfo[client].m_bJumped = true;
 }
 
 static Action Command_Stats(int client, int argc)
