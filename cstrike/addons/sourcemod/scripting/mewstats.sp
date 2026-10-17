@@ -258,6 +258,10 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
         ++g_ThrowInfo[client].m_iTicks;
     }
 
+    // OnPlayerRunCmd runs before StartTouch
+    //  meaning at tick == 2 we had a time of 1 tick
+    //  between current moment and the moment were
+    //  sky or flash hit happened, so we're safe to release MLS
     if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
         ++g_iSkyJumpTick[client];
@@ -323,7 +327,6 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
     return Plugin_Continue;
 }
-
 
 static Action Hook_StartTouch(int client, int entity)
 {
