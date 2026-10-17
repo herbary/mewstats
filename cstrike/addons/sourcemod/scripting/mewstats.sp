@@ -260,14 +260,14 @@ public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3
 
     if (g_iSkyJumpTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
-        if (tickcount - g_iSkyJumpTick[client] >= 2)
+        if (tickcount - g_iSkyJumpTick[client] >= 3)
         {
             g_iSkyJumpTick[client] = _MEWSTATS_TICK_UNKNOWN;
         }
     }
     if (g_iFlashHitTick[client] != _MEWSTATS_TICK_UNKNOWN)
     {
-        if (tickcount - g_iFlashHitTick[client] >= 2)
+        if (tickcount - g_iFlashHitTick[client] >= 3)
         {
             g_iFlashHitTick[client] = _MEWSTATS_TICK_UNKNOWN;
 
